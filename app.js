@@ -48,6 +48,7 @@ const state = {
   chart: null,
   planChart: null,
   featureChart: null,
+  costChart: null,
   loading: false,
   toastTimer: null
 };
@@ -105,6 +106,25 @@ const el = {
   accessWindow: document.getElementById("accessWindow"),
   accessPeriod: document.getElementById("accessPeriod"),
   accessRefreshed: document.getElementById("accessRefreshed"),
+  finPeriodSpend: document.getElementById("finPeriodSpend"),
+  finPeriodLabel: document.getElementById("finPeriodLabel"),
+  finWindowSpend: document.getElementById("finWindowSpend"),
+  finWindowCredits: document.getElementById("finWindowCredits"),
+  finBurnRate: document.getElementById("finBurnRate"),
+  finProjected: document.getElementById("finProjected"),
+  finProjectedDetail: document.getElementById("finProjectedDetail"),
+  financeCostChart: document.getElementById("financeCostChart"),
+  finTrendTotal: document.getElementById("finTrendTotal"),
+  finTrendPeak: document.getElementById("finTrendPeak"),
+  finTrendReqs: document.getElementById("finTrendReqs"),
+  finTrendLabel: document.getElementById("finTrendLabel"),
+  finProviderLabel: document.getElementById("finProviderLabel"),
+  finModelLabel: document.getElementById("finModelLabel"),
+  financeEfficiency: document.getElementById("financeEfficiency"),
+  financeProviderTable: document.getElementById("financeProviderTable"),
+  financeModelTable: document.getElementById("financeModelTable"),
+  financeUsersTable: document.getElementById("financeUsersTable"),
+  exportFinanceButton: document.getElementById("exportFinanceButton"),
   eventsList: document.getElementById("eventsList"),
   eventsListFull: document.getElementById("eventsListFull"),
   eventSearch: document.getElementById("eventSearch"),
@@ -162,6 +182,7 @@ el.userSearch.addEventListener("input", (event) => {
 });
 el.exportUsersButton.addEventListener("click", exportUsersCSV);
 el.exportEventsButton.addEventListener("click", exportEventsCSV);
+el.exportFinanceButton.addEventListener("click", exportFinanceCSV);
 el.eventSearch.addEventListener("input", (event) => {
   state.eventSearch = event.target.value.trim().toLowerCase();
   renderEventsFull();
@@ -367,6 +388,7 @@ function renderDashboard() {
   renderProviderSplit();
   renderTopSpenders();
   renderCostByModel();
+  renderFinance();
   populateEventFilters();
   renderEvents();
   renderEventsFull();
@@ -378,7 +400,7 @@ function renderDashboard() {
 }
 
 function setActiveView(view, updateHash) {
-  const nextView = ["overview", "users", "events", "audit", "access"].includes(view) ? view : "overview";
+  const nextView = ["overview", "finance", "users", "events", "audit", "access"].includes(view) ? view : "overview";
   state.activeView = nextView;
   el.navLinks.forEach((link) => {
     link.classList.toggle("active", link.dataset.viewLink === nextView);
@@ -395,6 +417,9 @@ function setActiveView(view, updateHash) {
       state.planChart?.resize();
       state.featureChart?.resize();
     });
+  }
+  if (nextView === "finance") {
+    requestAnimationFrame(() => state.costChart?.resize());
   }
 }
 
@@ -691,6 +716,226 @@ function barRowMarkup({ title, meta, value, percent, color, clickHash }) {
       <span class="bar-row-meta">${escapeHTML(meta)}</span>
     </div>
   `;
+}
+
+function renderFinance() {
+  const stats = state.dashboard?.stats || {};
+  const windowDays = state.dashboard?.eventWindowDays || 14;
+  const rows = state.dashboard?.usageByDay || [];
+  const periodCost = Number(stats.providerCostUSD) || 0;
+  const windowCost = Number(stats.windowProviderCostUSD) || 0;
+  const burnRate = windowDays > 0 ? windowCost / windowDays : 0;
+
+  el.finPeriodSpend.textContent = money(periodCost);
+  el.finPeriodLabel.textContent = state.dashboard?.periodKey || "Current period";
+  el.finWindowSpend.textContent = money(windowCost);
+  el.finWindowCredits.textContent = `${number(stats.creditsUsed || 0)} credits (period)`;
+  el.finBurnRate.textContent = money(burnRate);
+
+  const remaining = daysRemainingInMonth();
+  el.finProjected.textContent = money(periodCost + burnRate * remaining);
+  el.finProjectedDetail.textContent = `${number(remaining)} days left in ${state.dashboard?.periodKey || "period"}`;
+
+  el.finTrendLabel.textContent = `Last ${windowDays} days`;
+  el.finProviderLabel.textContent = `Last ${windowDays} days`;
+  el.finModelLabel.textContent = `Last ${windowDays} days`;
+
+  const peak = rows.reduce((max, row) => Math.max(max, Number(row.providerCostUSD) || 0), 0);
+  const requests = rows.reduce((sum, row) => sum + (Number(row.requests) || 0), 0);
+  el.finTrendTotal.textContent = money(windowCost);
+  el.finTrendPeak.textContent = money(peak);
+  el.finTrendReqs.textContent = number(requests);
+
+  renderCostTrendChart();
+  renderFinanceEfficiency();
+  renderFinanceProviders();
+  renderFinanceModels();
+  renderFinanceUsers();
+}
+
+function renderCostTrendChart() {
+  const rows = state.dashboard?.usageByDay || [];
+  const labels = rows.map((row) => row.day.slice(5));
+  const data = rows.map((row) => Number(row.providerCostUSD) || 0);
+  const maxCost = Math.max(0.01, ...data);
+  if (state.costChart) {
+    state.costChart.destroy();
+  }
+  const context = el.financeCostChart.getContext("2d");
+  const fill = context.createLinearGradient(0, 0, 0, 220);
+  fill.addColorStop(0, "rgba(217, 162, 74, 0.34)");
+  fill.addColorStop(1, "rgba(217, 162, 74, 0.02)");
+  state.costChart = new Chart(el.financeCostChart, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Provider cost",
+        data,
+        backgroundColor: fill,
+        hoverBackgroundColor: "rgba(255, 196, 107, 0.6)",
+        borderColor: "#d9a24a",
+        borderWidth: 1,
+        borderRadius: 6,
+        borderSkipped: false,
+        barThickness: 14
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(7, 9, 13, 0.96)",
+          borderColor: "rgba(230, 237, 245, 0.14)",
+          borderWidth: 1,
+          padding: 10,
+          callbacks: { label: (context) => ` ${money(context.parsed.y)}` }
+        }
+      },
+      scales: {
+        x: {
+          grid: { display: false },
+          border: { display: false },
+          ticks: { color: "#8f99aa", maxRotation: 0, autoSkipPadding: 18 }
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: maxCost * 1.15,
+          grid: { color: "rgba(230,237,245,0.07)" },
+          border: { display: false },
+          ticks: { color: "#8f99aa", maxTicksLimit: 4, callback: (value) => `$${Number(value).toFixed(2)}` }
+        }
+      }
+    }
+  });
+}
+
+function renderFinanceEfficiency() {
+  const stats = state.dashboard?.stats || {};
+  const activeUsers = Math.max(1, stats.activeUsers || 0);
+  const windowRequests = Number(stats.windowRequests) || 0;
+  const windowCost = Number(stats.windowProviderCostUSD) || 0;
+  const periodCost = Number(stats.providerCostUSD) || 0;
+  const creditsUsed = Number(stats.creditsUsed) || 0;
+  const metrics = [
+    { label: "Cost per request", value: windowRequests > 0 ? money(windowCost / windowRequests) : "—", meta: "Last 14 days" },
+    { label: "Cost per active user", value: money(periodCost / activeUsers), meta: "This period" },
+    { label: "Cost per 1,000 credits", value: creditsUsed > 0 ? money((periodCost / creditsUsed) * 1000) : "—", meta: "This period" },
+    { label: "Video share of requests", value: windowRequests > 0 ? `${Math.round(((Number(stats.windowVideos) || 0) / windowRequests) * 100)}%` : "—", meta: "Last 14 days" }
+  ];
+  el.financeEfficiency.innerHTML = metrics.map((metric) => `
+    <div class="metric-row">
+      <div><span>${escapeHTML(metric.label)}</span><small>${escapeHTML(metric.meta)}</small></div>
+      <strong>${escapeHTML(metric.value)}</strong>
+    </div>
+  `).join("");
+}
+
+function renderFinanceProviders() {
+  const rows = state.dashboard?.costByModel || [];
+  const byProvider = new Map();
+  rows.forEach((row) => {
+    const key = row.provider || "unknown";
+    const entry = byProvider.get(key) || { provider: key, requests: 0, cost: 0 };
+    entry.requests += Number(row.requests) || 0;
+    entry.cost += Number(row.providerCostUSD) || 0;
+    byProvider.set(key, entry);
+  });
+  const entries = Array.from(byProvider.values()).sort((lhs, rhs) => rhs.cost - lhs.cost);
+  if (entries.length === 0) {
+    el.financeProviderTable.innerHTML = `<tr><td colspan="4" class="empty-state">No provider spend in this window yet.</td></tr>`;
+    return;
+  }
+  el.financeProviderTable.innerHTML = entries.map((entry) => `
+    <tr>
+      <td><strong>${escapeHTML(entry.provider)}</strong></td>
+      <td>${number(entry.requests)}</td>
+      <td>${money(entry.cost)}</td>
+      <td>${entry.requests > 0 ? money(entry.cost / entry.requests) : "—"}</td>
+    </tr>
+  `).join("");
+}
+
+function renderFinanceModels() {
+  const rows = state.dashboard?.costByModel || [];
+  if (rows.length === 0) {
+    el.financeModelTable.innerHTML = `<tr><td colspan="4" class="empty-state">No model spend in this window yet.</td></tr>`;
+    return;
+  }
+  el.financeModelTable.innerHTML = rows.map((row) => {
+    const requests = Number(row.requests) || 0;
+    const cost = Number(row.providerCostUSD) || 0;
+    return `
+      <tr>
+        <td>
+          <div class="model-cell">
+            <strong>${escapeHTML(row.model || "unknown")}</strong>
+            <span class="identity-meta">${escapeHTML(row.provider || "unknown")}</span>
+          </div>
+        </td>
+        <td>${number(requests)}</td>
+        <td>${money(cost)}</td>
+        <td>${requests > 0 ? money(cost / requests) : "—"}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderFinanceUsers() {
+  const withCost = (state.dashboard?.users || [])
+    .filter((user) => (Number(user.providerCostUSD) || 0) > 0)
+    .sort((lhs, rhs) => (Number(rhs.providerCostUSD) || 0) - (Number(lhs.providerCostUSD) || 0));
+  if (withCost.length === 0) {
+    el.financeUsersTable.innerHTML = `<tr><td colspan="6" class="empty-state">No user spend recorded this period.</td></tr>`;
+    return;
+  }
+  const maxCost = Math.max(...withCost.map((user) => Number(user.providerCostUSD) || 0), 0.0001);
+  el.financeUsersTable.innerHTML = withCost.slice(0, 40).map((user) => {
+    const cost = Number(user.providerCostUSD) || 0;
+    const credits = Number(user.creditsUsed) || 0;
+    const share = Math.max(3, Math.round((cost / maxCost) * 100));
+    return `
+      <tr>
+        <td>
+          <div class="user-cell">
+            <strong>${escapeHTML(accountLabel(user))}</strong>
+            <code>${escapeHTML(shortID(user.uid, 9))}</code>
+          </div>
+        </td>
+        <td>${escapeHTML(planLabel(user.subscriptionProductID))}</td>
+        <td>${number(credits)}</td>
+        <td>${money(cost)}</td>
+        <td>${credits > 0 ? money(cost / credits) : "—"}</td>
+        <td><span class="meter-track"><span class="meter-fill" style="width:${share}%"></span></span></td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function exportFinanceCSV() {
+  const withCost = (state.dashboard?.users || []).filter((user) => (Number(user.providerCostUSD) || 0) > 0);
+  if (withCost.length === 0) {
+    showToast("No spend to export.", "warn");
+    return;
+  }
+  const header = ["account", "uid", "plan", "creditsUsed", "providerCostUSD", "costPerCredit"];
+  const lines = withCost
+    .sort((lhs, rhs) => (Number(rhs.providerCostUSD) || 0) - (Number(lhs.providerCostUSD) || 0))
+    .map((user) => {
+      const cost = Number(user.providerCostUSD) || 0;
+      const credits = Number(user.creditsUsed) || 0;
+      return [accountLabel(user), user.uid, planLabel(user.subscriptionProductID), credits, cost, credits > 0 ? (cost / credits).toFixed(6) : ""];
+    });
+  downloadCSV(`soundframe-cost-${state.dashboard.periodKey || "current"}.csv`, header, lines);
+}
+
+function daysRemainingInMonth() {
+  const now = new Date();
+  const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
+  return Math.max(0, daysInMonth - now.getUTCDate());
 }
 
 function eventRowMarkup(event) {

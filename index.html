@@ -19,6 +19,7 @@
         </div>
         <nav>
           <a href="#overview" class="active" data-view-link="overview">Overview</a>
+          <a href="#finance" data-view-link="finance">Finance</a>
           <a href="#users" data-view-link="users">Users</a>
           <a href="#events" data-view-link="events">Events</a>
           <a href="#audit" data-view-link="audit">Audit</a>
@@ -225,6 +226,132 @@
                   </table>
                 </div>
               </article>
+            </section>
+          </section>
+
+          <section id="finance" class="view-section hidden" data-view-section="finance">
+            <section class="finance-kpis" aria-label="Spend summary">
+              <article class="stat-card">
+                <span>Spend this period</span>
+                <strong id="finPeriodSpend">$0.00</strong>
+                <small id="finPeriodLabel">Current period</small>
+              </article>
+              <article class="stat-card">
+                <span>Spend last 14 days</span>
+                <strong id="finWindowSpend">$0.00</strong>
+                <small id="finWindowCredits">0 credits</small>
+              </article>
+              <article class="stat-card">
+                <span>Burn rate</span>
+                <strong id="finBurnRate">$0.00</strong>
+                <small>Per day (14-day avg)</small>
+              </article>
+              <article class="stat-card">
+                <span>Projected month-end</span>
+                <strong id="finProjected">$0.00</strong>
+                <small id="finProjectedDetail">At current burn rate</small>
+              </article>
+            </section>
+
+            <section class="content-grid">
+              <article class="panel chart-panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="finTrendLabel">Last 14 days</p>
+                    <h2>Provider cost per day</h2>
+                  </div>
+                  <span class="period-chip">USD</span>
+                </div>
+                <div class="chart-frame">
+                  <canvas id="financeCostChart" role="img" aria-label="Provider cost per day over the last 14 days"></canvas>
+                </div>
+                <div class="chart-summary" aria-label="Cost trend summary">
+                  <span><strong id="finTrendTotal">$0.00</strong> total</span>
+                  <span><strong id="finTrendPeak">$0.00</strong> peak day</span>
+                  <span><strong id="finTrendReqs">0</strong> requests</span>
+                </div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Efficiency</p>
+                    <h2>Unit economics</h2>
+                  </div>
+                </div>
+                <div id="financeEfficiency" class="metric-list"></div>
+              </article>
+            </section>
+
+            <section class="spend-grid">
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="finProviderLabel">Last 14 days</p>
+                    <h2>Cost by provider</h2>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table class="compact-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Provider</th>
+                        <th scope="col">Requests</th>
+                        <th scope="col">Cost</th>
+                        <th scope="col">Cost / req</th>
+                      </tr>
+                    </thead>
+                    <tbody id="financeProviderTable"></tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="finModelLabel">Last 14 days</p>
+                    <h2>Cost by model</h2>
+                  </div>
+                </div>
+                <div class="table-wrap">
+                  <table class="compact-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Provider / model</th>
+                        <th scope="col">Requests</th>
+                        <th scope="col">Cost</th>
+                        <th scope="col">Cost / req</th>
+                      </tr>
+                    </thead>
+                    <tbody id="financeModelTable"></tbody>
+                  </table>
+                </div>
+              </article>
+            </section>
+
+            <section class="panel">
+              <div class="panel-header users-header">
+                <div>
+                  <p class="eyebrow">This billing month</p>
+                  <h2>Cost by user</h2>
+                </div>
+                <button id="exportFinanceButton" class="ghost" type="button">Export CSV</button>
+              </div>
+              <div class="table-wrap">
+                <table class="compact-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Account</th>
+                      <th scope="col">Plan</th>
+                      <th scope="col">Credits</th>
+                      <th scope="col">Cost</th>
+                      <th scope="col">Cost / credit</th>
+                      <th scope="col">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody id="financeUsersTable"></tbody>
+                </table>
+              </div>
             </section>
           </section>
 

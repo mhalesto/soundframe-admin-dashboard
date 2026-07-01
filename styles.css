@@ -1279,3 +1279,56 @@ textarea {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* --- Finance page --- */
+.finance-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.metric-list {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.metric-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.metric-row span {
+  display: block;
+  color: var(--soft);
+  font-weight: 700;
+}
+
+.metric-row small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.metric-row strong {
+  flex: 0 0 auto;
+  font-size: 1.15rem;
+}
+
+@media (max-width: 1080px) {
+  .finance-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .finance-kpis {
+    grid-template-columns: 1fr 1fr;
+  }
+}
