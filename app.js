@@ -56,6 +56,9 @@ const el = {
   activeOverrides: document.getElementById("activeOverrides"),
   periodText: document.getElementById("periodText"),
   usageChart: document.getElementById("usageChart"),
+  chartRequests: document.getElementById("chartRequests"),
+  chartVideos: document.getElementById("chartVideos"),
+  chartCost: document.getElementById("chartCost"),
   eventsList: document.getElementById("eventsList"),
   usersTable: document.getElementById("usersTable"),
   userSearch: document.getElementById("userSearch"),
@@ -172,6 +175,9 @@ function renderDashboard() {
   el.providerCost.textContent = money(stats.providerCostUSD);
   el.activeOverrides.textContent = `${number(stats.activeOverrides)} active overrides`;
   el.periodText.textContent = state.dashboard.periodKey || "Current period";
+  el.chartRequests.textContent = number((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.requests, 0));
+  el.chartVideos.textContent = number((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.videos, 0));
+  el.chartCost.textContent = money((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.providerCostUSD, 0));
   renderChart();
   renderEvents();
   renderUsers();
@@ -182,9 +188,15 @@ function renderChart() {
   const labels = rows.map((row) => row.day.slice(5));
   const requestData = rows.map((row) => row.requests);
   const videoData = rows.map((row) => row.videos);
+  const maxRequests = Math.max(6, ...requestData);
+  const maxVideos = Math.max(3, ...videoData);
   if (state.chart) {
     state.chart.destroy();
   }
+  const context = el.usageChart.getContext("2d");
+  const requestFill = context.createLinearGradient(0, 0, 0, 220);
+  requestFill.addColorStop(0, "rgba(55, 212, 223, 0.24)");
+  requestFill.addColorStop(1, "rgba(55, 212, 223, 0.01)");
   state.chart = new Chart(el.usageChart, {
     type: "bar",
     data: {
@@ -194,39 +206,84 @@ function renderChart() {
           type: "line",
           label: "Requests",
           data: requestData,
-          borderColor: "#27c7d9",
-          backgroundColor: "rgba(39, 199, 217, 0.16)",
-          borderWidth: 3,
-          pointRadius: 3,
-          tension: 0.36,
-          yAxisID: "y"
+          borderColor: "#37d4df",
+          backgroundColor: requestFill,
+          borderWidth: 2,
+          fill: true,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          tension: 0.28,
+          yAxisID: "requests",
+          order: 1
         },
         {
           label: "Videos",
           data: videoData,
-          backgroundColor: "rgba(246, 180, 75, 0.72)",
-          borderRadius: 6,
-          yAxisID: "y"
+          backgroundColor: "rgba(217, 162, 74, 0.82)",
+          hoverBackgroundColor: "rgba(255, 196, 107, 0.95)",
+          borderRadius: 8,
+          borderSkipped: false,
+          barThickness: 12,
+          yAxisID: "videos",
+          order: 2
         }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
+      animation: false,
+      normalized: true,
+      interaction: {
+        intersect: false,
+        mode: "index"
+      },
       plugins: {
         legend: {
-          labels: { color: "#c4cad6", boxWidth: 10, usePointStyle: true }
+          align: "end",
+          labels: {
+            color: "#c4cad6",
+            boxWidth: 8,
+            boxHeight: 8,
+            usePointStyle: true,
+            padding: 14
+          }
+        },
+        tooltip: {
+          backgroundColor: "rgba(7, 9, 13, 0.96)",
+          borderColor: "rgba(230, 237, 245, 0.14)",
+          borderWidth: 1,
+          displayColors: true,
+          padding: 10
         }
       },
       scales: {
         x: {
           grid: { display: false },
-          ticks: { color: "#9aa4b7" }
+          border: { display: false },
+          ticks: {
+            color: "#8f99aa",
+            maxRotation: 0,
+            autoSkipPadding: 18
+          }
         },
-        y: {
+        requests: {
           beginAtZero: true,
-          grid: { color: "rgba(255,255,255,0.08)" },
-          ticks: { color: "#9aa4b7", precision: 0 }
+          suggestedMax: maxRequests + Math.ceil(maxRequests * 0.12),
+          grid: { color: "rgba(230,237,245,0.07)" },
+          border: { display: false },
+          ticks: {
+            color: "#8f99aa",
+            precision: 0,
+            maxTicksLimit: 4
+          }
+        },
+        videos: {
+          beginAtZero: true,
+          position: "right",
+          suggestedMax: maxVideos + 1,
+          display: false,
+          grid: { display: false }
         }
       }
     }

@@ -33,7 +33,7 @@
         <header class="topbar">
           <div>
             <p class="eyebrow">Live control center</p>
-            <h1>Creator limits and AI usage</h1>
+            <h1>Creator operations</h1>
           </div>
           <div class="top-actions">
             <button id="copyUidButton" class="ghost" type="button">Copy UID</button>
@@ -91,7 +91,14 @@
                 </div>
                 <span id="periodText" class="period-chip">Period</span>
               </div>
-              <canvas id="usageChart" height="132"></canvas>
+              <div class="chart-frame">
+                <canvas id="usageChart"></canvas>
+              </div>
+              <div class="chart-summary" aria-label="Chart summary">
+                <span><strong id="chartRequests">0</strong> requests</span>
+                <span><strong id="chartVideos">0</strong> videos</span>
+                <span><strong id="chartCost">$0.00</strong> provider cost</span>
+              </div>
             </article>
 
             <article class="panel">
