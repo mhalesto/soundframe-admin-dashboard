@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>SoundFrame Admin</title>
+    <link rel="preconnect" href="https://www.gstatic.com">
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar" aria-label="Dashboard navigation">
+        <div class="brand">
+          <span class="brand-mark">SF</span>
+          <div>
+            <strong>SoundFrame</strong>
+            <span>Admin</span>
+          </div>
+        </div>
+        <nav>
+          <a href="#overview" class="active">Overview</a>
+          <a href="#users">Users</a>
+          <a href="#events">Events</a>
+          <a href="#setup">Access</a>
+        </nav>
+        <div class="sidebar-card">
+          <span>Project</span>
+          <strong>soundframe-1b8d4</strong>
+        </div>
+      </aside>
+
+      <main>
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Live control center</p>
+            <h1>Creator limits and AI usage</h1>
+          </div>
+          <div class="top-actions">
+            <button id="copyUidButton" class="ghost" type="button">Copy UID</button>
+            <button id="refreshButton" class="primary" type="button">Refresh</button>
+          </div>
+        </header>
+
+        <section id="statusPanel" class="status-panel">
+          <div>
+            <span id="statusLabel" class="status-pill">Connecting</span>
+            <p id="statusText">Signing in to Firebase...</p>
+          </div>
+          <code id="uidText">UID pending</code>
+        </section>
+
+        <section id="setupPanel" class="setup-panel hidden">
+          <div>
+            <p class="eyebrow">Setup required</p>
+            <h2>This Firebase UID is not admin yet.</h2>
+            <p>Add the UID shown above to `SOUNDFRAME_ADMIN_UIDS` in the SoundFrame Functions environment, deploy Functions, then refresh this page.</p>
+          </div>
+          <pre><code id="setupCommand"></code></pre>
+        </section>
+
+        <section id="dashboard" class="hidden">
+          <section id="overview" class="stats-grid" aria-label="Key stats">
+            <article class="stat-card">
+              <span>Active users</span>
+              <strong id="activeUsers">0</strong>
+              <small id="usageRecords">0 usage records</small>
+            </article>
+            <article class="stat-card">
+              <span>Videos used</span>
+              <strong id="videoClips">0</strong>
+              <small>This billing month</small>
+            </article>
+            <article class="stat-card">
+              <span>AI credits used</span>
+              <strong id="creditsUsed">0</strong>
+              <small>Text, images, captions</small>
+            </article>
+            <article class="stat-card">
+              <span>Provider cost</span>
+              <strong id="providerCost">$0.00</strong>
+              <small id="activeOverrides">0 active overrides</small>
+            </article>
+          </section>
+
+          <section class="content-grid">
+            <article class="panel chart-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Last 14 days</p>
+                  <h2>Requests and video usage</h2>
+                </div>
+                <span id="periodText" class="period-chip">Period</span>
+              </div>
+              <canvas id="usageChart" height="132"></canvas>
+            </article>
+
+            <article class="panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow">Recent activity</p>
+                  <h2>Events</h2>
+                </div>
+              </div>
+              <div id="eventsList" class="events-list"></div>
+            </article>
+          </section>
+
+          <section id="users" class="panel users-panel">
+            <div class="panel-header users-header">
+              <div>
+                <p class="eyebrow">Quota management</p>
+                <h2>Users</h2>
+              </div>
+              <input id="userSearch" type="search" placeholder="Search UID, plan, model...">
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>User</th>
+                    <th>Plan</th>
+                    <th>Videos</th>
+                    <th>Credits</th>
+                    <th>Cost</th>
+                    <th>Last model</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="usersTable"></tbody>
+              </table>
+            </div>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <dialog id="limitDialog">
+      <form method="dialog" class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">User quota</p>
+            <h2 id="dialogTitle">Edit limits</h2>
+          </div>
+          <button id="closeDialogButton" class="icon-button" value="cancel" aria-label="Close" type="submit">x</button>
+        </div>
+        <div class="quota-context">
+          <code id="dialogHash">quota hash</code>
+          <span id="dialogPlan">plan</span>
+        </div>
+        <label>
+          Video clip limit
+          <input id="videoLimitInput" type="number" min="0" step="1">
+        </label>
+        <label class="check-row">
+          <input id="clearVideoLimitInput" type="checkbox">
+          Clear video override
+        </label>
+        <label>
+          AI credit limit
+          <input id="creditLimitInput" type="number" min="0" step="1">
+        </label>
+        <label class="check-row">
+          <input id="clearCreditLimitInput" type="checkbox">
+          Clear credit override
+        </label>
+        <label>
+          Admin note
+          <textarea id="noteInput" rows="3" placeholder="Reason for this limit change"></textarea>
+        </label>
+        <label class="check-row">
+          <input id="disabledInput" type="checkbox">
+          Pause this override without deleting it
+        </label>
+        <div id="dialogError" class="dialog-error hidden"></div>
+        <div class="dialog-actions">
+          <button class="ghost" value="cancel" type="submit">Cancel</button>
+          <button id="saveLimitsButton" class="primary" value="default" type="button">Save limits</button>
+        </div>
+      </form>
+    </dialog>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>
