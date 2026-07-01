@@ -21,6 +21,7 @@
           <a href="#overview" class="active" data-view-link="overview">Overview</a>
           <a href="#users" data-view-link="users">Users</a>
           <a href="#events" data-view-link="events">Events</a>
+          <a href="#audit" data-view-link="audit">Audit</a>
           <a href="#access" data-view-link="access">Access</a>
         </nav>
         <div class="sidebar-card">
@@ -36,7 +37,10 @@
             <h1>Creator operations</h1>
           </div>
           <div class="top-actions">
+            <span id="freshness" class="freshness hidden" aria-live="polite"></span>
+            <button id="autoRefreshButton" class="ghost" type="button" aria-pressed="true">Auto: on</button>
             <button id="copyUidButton" class="ghost" type="button">Copy UID</button>
+            <button id="signOutButton" class="ghost hidden" type="button">Sign out</button>
             <button id="refreshButton" class="primary" type="button">Refresh</button>
           </div>
         </header>
@@ -47,6 +51,18 @@
             <p id="statusText">Signing in to Firebase...</p>
           </div>
           <code id="uidText">UID pending</code>
+        </section>
+
+        <section id="signInPanel" class="signin-panel hidden">
+          <div>
+            <p class="eyebrow">Sign in</p>
+            <h2>Authenticate to manage SoundFrame</h2>
+            <p>Sign in with a Google account for a real, auditable admin identity. Anonymous sign-in still works for existing whitelisted devices.</p>
+          </div>
+          <div class="signin-actions">
+            <button id="googleSignInButton" class="primary" type="button">Sign in with Google</button>
+            <button id="anonSignInButton" class="ghost" type="button">Continue anonymously</button>
+          </div>
         </section>
 
         <section id="setupPanel" class="setup-panel hidden">
@@ -87,13 +103,13 @@
               <article class="panel chart-panel">
                 <div class="panel-header">
                   <div>
-                    <p class="eyebrow">Last 14 days</p>
+                    <p class="eyebrow" id="chartWindowLabel">Last 14 days</p>
                     <h2>Requests and video usage</h2>
                   </div>
                   <span id="periodText" class="period-chip">Period</span>
                 </div>
                 <div class="chart-frame">
-                  <canvas id="usageChart"></canvas>
+                  <canvas id="usageChart" role="img" aria-label="Daily requests and video usage over the last 14 days"></canvas>
                 </div>
                 <div class="chart-summary" aria-label="Chart summary">
                   <span><strong id="chartRequests">0</strong> requests</span>
@@ -112,6 +128,30 @@
                 <div id="eventsList" class="events-list"></div>
               </article>
             </section>
+
+            <article class="panel cost-panel">
+              <div class="panel-header">
+                <div>
+                  <p class="eyebrow" id="costWindowLabel">Last 14 days</p>
+                  <h2>Cost by model</h2>
+                </div>
+                <span class="period-chip">Provider spend</span>
+              </div>
+              <div class="table-wrap">
+                <table class="compact-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Provider / model</th>
+                      <th scope="col">Requests</th>
+                      <th scope="col">Credits</th>
+                      <th scope="col">Cost</th>
+                      <th scope="col">Share</th>
+                    </tr>
+                  </thead>
+                  <tbody id="costByModelTable"></tbody>
+                </table>
+              </div>
+            </article>
           </section>
 
           <section id="users" class="panel users-panel view-section hidden" data-view-section="users">
@@ -120,19 +160,22 @@
                 <p class="eyebrow">Quota management</p>
                 <h2>Users</h2>
               </div>
-              <input id="userSearch" type="search" placeholder="Search email, UID, plan, model...">
+              <div class="header-tools">
+                <input id="userSearch" type="search" placeholder="Search email, UID, plan, model...">
+                <button id="exportUsersButton" class="ghost" type="button">Export CSV</button>
+              </div>
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>Account</th>
-                    <th>Plan</th>
-                    <th>Videos</th>
-                    <th>Credits</th>
-                    <th>Cost</th>
-                    <th>Last model</th>
-                    <th></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="account">Account</button></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="plan">Plan</button></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="videos">Videos</button></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="credits">Credits</button></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="cost">Cost</button></th>
+                    <th scope="col"><button class="sort-th" type="button" data-sort="model">Last model</button></th>
+                    <th scope="col"></th>
                   </tr>
                 </thead>
                 <tbody id="usersTable"></tbody>
@@ -147,7 +190,23 @@
                 <h2>Events</h2>
               </div>
             </div>
+            <div class="filter-bar">
+              <input id="eventSearch" type="search" placeholder="Search action, provider, model, UID...">
+              <select id="eventProvider" aria-label="Filter by provider"><option value="">All providers</option></select>
+              <select id="eventKind" aria-label="Filter by usage kind"><option value="">All kinds</option></select>
+              <button id="exportEventsButton" class="ghost" type="button">Export CSV</button>
+            </div>
             <div id="eventsListFull" class="events-list events-list-large"></div>
+          </section>
+
+          <section id="audit" class="panel events-page view-section hidden" data-view-section="audit">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Change history</p>
+                <h2>Admin audit log</h2>
+              </div>
+            </div>
+            <div id="auditList" class="events-list events-list-large"></div>
           </section>
 
           <section id="access" class="panel access-panel view-section hidden" data-view-section="access">
@@ -164,8 +223,8 @@
                 <code id="accessUID">UID pending</code>
               </div>
               <div>
-                <span>Admin source</span>
-                <strong>Firebase Functions authorization</strong>
+                <span>Signed in as</span>
+                <strong id="accessIdentity">Firebase Auth user</strong>
               </div>
             </div>
           </section>
@@ -231,6 +290,30 @@
         </div>
       </form>
     </dialog>
+
+    <dialog id="userDialog">
+      <div class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">User detail</p>
+            <h2 id="userDialogTitle">User</h2>
+          </div>
+          <button id="closeUserDialogButton" class="icon-button" aria-label="Close" type="button">x</button>
+        </div>
+        <div class="quota-context" id="userDialogIdentity"></div>
+        <div class="usage-grid" id="userDialogUsage"></div>
+        <div class="user-events-block">
+          <p class="eyebrow">Recent events</p>
+          <div id="userDialogEvents" class="events-list"></div>
+        </div>
+        <div class="dialog-actions">
+          <button id="userDialogEditButton" class="ghost" type="button">Edit limits</button>
+          <button id="userDialogCloseButton" class="primary" type="button">Close</button>
+        </div>
+      </div>
+    </dialog>
+
+    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script type="module" src="./app.js"></script>

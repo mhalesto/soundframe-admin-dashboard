@@ -3,6 +3,8 @@ import {
   getAuth,
   onAuthStateChanged,
   signInAnonymously,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut
 } from "https://www.gstatic.com/firebasejs/11.10.0/firebase-auth.js";
 import {
@@ -20,9 +22,12 @@ const firebaseConfig = {
   measurementId: "G-W60KKZCNER"
 };
 
+const AUTO_REFRESH_MS = 45000;
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const functions = getFunctions(app, "europe-west1");
+const googleProvider = new GoogleAuthProvider();
 
 const statusCallable = httpsCallable(functions, "soundframeAdminStatus");
 const dashboardCallable = httpsCallable(functions, "soundframeAdminDashboard");
@@ -35,8 +40,14 @@ const state = {
   selectedUser: null,
   activeView: viewFromHash(),
   search: "",
+  sort: { key: "cost", dir: "desc" },
+  eventSearch: "",
+  eventProvider: "",
+  eventKind: "",
+  autoRefresh: true,
   chart: null,
-  loading: false
+  loading: false,
+  toastTimer: null
 };
 
 const el = {
@@ -46,8 +57,14 @@ const el = {
   statusLabel: document.getElementById("statusLabel"),
   statusText: document.getElementById("statusText"),
   uidText: document.getElementById("uidText"),
+  freshness: document.getElementById("freshness"),
+  autoRefreshButton: document.getElementById("autoRefreshButton"),
   copyUidButton: document.getElementById("copyUidButton"),
+  signOutButton: document.getElementById("signOutButton"),
   refreshButton: document.getElementById("refreshButton"),
+  signInPanel: document.getElementById("signInPanel"),
+  googleSignInButton: document.getElementById("googleSignInButton"),
+  anonSignInButton: document.getElementById("anonSignInButton"),
   setupPanel: document.getElementById("setupPanel"),
   setupCommand: document.getElementById("setupCommand"),
   dashboard: document.getElementById("dashboard"),
@@ -58,16 +75,27 @@ const el = {
   providerCost: document.getElementById("providerCost"),
   activeOverrides: document.getElementById("activeOverrides"),
   periodText: document.getElementById("periodText"),
+  chartWindowLabel: document.getElementById("chartWindowLabel"),
+  costWindowLabel: document.getElementById("costWindowLabel"),
   usageChart: document.getElementById("usageChart"),
   chartRequests: document.getElementById("chartRequests"),
   chartVideos: document.getElementById("chartVideos"),
   chartCost: document.getElementById("chartCost"),
+  costByModelTable: document.getElementById("costByModelTable"),
   eventsList: document.getElementById("eventsList"),
   eventsListFull: document.getElementById("eventsListFull"),
+  eventSearch: document.getElementById("eventSearch"),
+  eventProvider: document.getElementById("eventProvider"),
+  eventKind: document.getElementById("eventKind"),
+  exportEventsButton: document.getElementById("exportEventsButton"),
+  auditList: document.getElementById("auditList"),
   accessUID: document.getElementById("accessUID"),
   accessStatus: document.getElementById("accessStatus"),
+  accessIdentity: document.getElementById("accessIdentity"),
   usersTable: document.getElementById("usersTable"),
   userSearch: document.getElementById("userSearch"),
+  exportUsersButton: document.getElementById("exportUsersButton"),
+  sortHeaders: Array.from(document.querySelectorAll(".sort-th")),
   limitDialog: document.getElementById("limitDialog"),
   dialogTitle: document.getElementById("dialogTitle"),
   dialogEmail: document.getElementById("dialogEmail"),
@@ -81,7 +109,16 @@ const el = {
   noteInput: document.getElementById("noteInput"),
   disabledInput: document.getElementById("disabledInput"),
   dialogError: document.getElementById("dialogError"),
-  saveLimitsButton: document.getElementById("saveLimitsButton")
+  saveLimitsButton: document.getElementById("saveLimitsButton"),
+  userDialog: document.getElementById("userDialog"),
+  userDialogTitle: document.getElementById("userDialogTitle"),
+  userDialogIdentity: document.getElementById("userDialogIdentity"),
+  userDialogUsage: document.getElementById("userDialogUsage"),
+  userDialogEvents: document.getElementById("userDialogEvents"),
+  userDialogEditButton: document.getElementById("userDialogEditButton"),
+  userDialogCloseButton: document.getElementById("userDialogCloseButton"),
+  closeUserDialogButton: document.getElementById("closeUserDialogButton"),
+  toast: document.getElementById("toast")
 };
 
 el.navLinks.forEach((link) => {
@@ -91,39 +128,110 @@ el.navLinks.forEach((link) => {
   });
 });
 el.refreshButton.addEventListener("click", () => refresh());
+el.autoRefreshButton.addEventListener("click", toggleAutoRefresh);
 el.copyUidButton.addEventListener("click", copyUID);
+el.signOutButton.addEventListener("click", () => signOut(auth));
+el.googleSignInButton.addEventListener("click", signInWithGoogle);
+el.anonSignInButton.addEventListener("click", continueAnonymously);
 el.userSearch.addEventListener("input", (event) => {
   state.search = event.target.value.trim().toLowerCase();
   renderUsers();
 });
+el.exportUsersButton.addEventListener("click", exportUsersCSV);
+el.exportEventsButton.addEventListener("click", exportEventsCSV);
+el.eventSearch.addEventListener("input", (event) => {
+  state.eventSearch = event.target.value.trim().toLowerCase();
+  renderEventsFull();
+});
+el.eventProvider.addEventListener("change", (event) => {
+  state.eventProvider = event.target.value;
+  renderEventsFull();
+});
+el.eventKind.addEventListener("change", (event) => {
+  state.eventKind = event.target.value;
+  renderEventsFull();
+});
+el.sortHeaders.forEach((header) => {
+  header.addEventListener("click", () => applySort(header.dataset.sort));
+});
 el.usersTable.addEventListener("click", (event) => {
-  const button = event.target.closest("[data-edit-user]");
-  if (!button || !state.dashboard) {
+  const editButton = event.target.closest("[data-edit-user]");
+  const detailButton = event.target.closest("[data-detail-user]");
+  const target = editButton || detailButton;
+  if (!target || !state.dashboard) {
     return;
   }
-  const user = state.dashboard.users.find((candidate) => candidate.quotaSubjectHash === button.dataset.editUser);
+  const hash = target.dataset.editUser || target.dataset.detailUser;
+  const user = state.dashboard.users.find((candidate) => candidate.quotaSubjectHash === hash);
+  if (!user) {
+    return;
+  }
+  if (editButton) {
+    openLimitDialog(user);
+  } else {
+    openUserDetail(user);
+  }
+});
+el.saveLimitsButton.addEventListener("click", saveLimits);
+el.closeUserDialogButton.addEventListener("click", () => el.userDialog.close());
+el.userDialogCloseButton.addEventListener("click", () => el.userDialog.close());
+el.userDialogEditButton.addEventListener("click", () => {
+  const user = state.selectedUser;
+  el.userDialog.close();
   if (user) {
     openLimitDialog(user);
   }
 });
-el.saveLimitsButton.addEventListener("click", saveLimits);
 window.addEventListener("hashchange", () => {
   setActiveView(viewFromHash(), false);
 });
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") {
+    maybeAutoRefresh();
+  }
+});
+
+setInterval(maybeAutoRefresh, AUTO_REFRESH_MS);
+setInterval(tickFreshness, 1000);
 
 onAuthStateChanged(auth, async (user) => {
   state.user = user;
   if (!user) {
-    setStatus("Connecting", "Signing in anonymously...", "locked");
-    try {
-      await signInAnonymously(auth);
-    } catch (error) {
-      showError(`Anonymous sign-in failed. Enable Anonymous Auth in Firebase Authentication. ${errorMessage(error)}`);
-    }
+    state.status = null;
+    state.dashboard = null;
+    showSignIn();
     return;
   }
+  el.signInPanel.classList.add("hidden");
+  el.signOutButton.classList.remove("hidden");
   await refresh();
 });
+
+function showSignIn() {
+  el.signOutButton.classList.add("hidden");
+  el.dashboard.classList.add("hidden");
+  el.setupPanel.classList.add("hidden");
+  el.freshness.classList.add("hidden");
+  el.signInPanel.classList.remove("hidden");
+  el.uidText.textContent = "Not signed in";
+  setStatus("Signed out", "Choose how to authenticate to load the admin console.", "locked");
+}
+
+async function signInWithGoogle() {
+  try {
+    await signInWithPopup(auth, googleProvider);
+  } catch (error) {
+    showToast(`Google sign-in failed. ${errorMessage(error)}`, "warn");
+  }
+}
+
+async function continueAnonymously() {
+  try {
+    await signInAnonymously(auth);
+  } catch (error) {
+    showToast(`Anonymous sign-in failed. Enable Anonymous Auth in Firebase Authentication. ${errorMessage(error)}`, "warn");
+  }
+}
 
 async function refresh() {
   if (!state.user || state.loading) {
@@ -152,6 +260,31 @@ async function refresh() {
   }
 }
 
+function maybeAutoRefresh() {
+  if (!state.autoRefresh || state.loading) {
+    return;
+  }
+  if (document.visibilityState !== "visible") {
+    return;
+  }
+  if (!state.user || !state.status?.isAdmin) {
+    return;
+  }
+  if (el.limitDialog.open || el.userDialog.open) {
+    return;
+  }
+  refresh();
+}
+
+function toggleAutoRefresh() {
+  state.autoRefresh = !state.autoRefresh;
+  el.autoRefreshButton.textContent = state.autoRefresh ? "Auto: on" : "Auto: off";
+  el.autoRefreshButton.setAttribute("aria-pressed", String(state.autoRefresh));
+  if (state.autoRefresh) {
+    maybeAutoRefresh();
+  }
+}
+
 function renderShell() {
   const uid = state.status?.uid || state.user?.uid || "";
   el.uidText.textContent = uid ? `UID ${uid}` : "UID pending";
@@ -164,7 +297,9 @@ function renderShell() {
 
 function renderLocked() {
   const uid = state.status?.uid || state.user?.uid || "PASTE_UID_HERE";
+  el.signInPanel.classList.add("hidden");
   el.dashboard.classList.add("hidden");
+  el.freshness.classList.add("hidden");
   el.setupPanel.classList.remove("hidden");
   el.setupCommand.textContent = [
     "cd ~/Documents/GitHub/soundframe-ios",
@@ -183,8 +318,13 @@ function renderDashboard() {
     return;
   }
   const stats = state.dashboard.stats;
+  const windowDays = state.dashboard.eventWindowDays || 14;
+  el.signInPanel.classList.add("hidden");
   el.setupPanel.classList.add("hidden");
   el.dashboard.classList.remove("hidden");
+  el.freshness.classList.remove("hidden");
+  el.chartWindowLabel.textContent = `Last ${windowDays} days`;
+  el.costWindowLabel.textContent = `Last ${windowDays} days`;
   el.activeUsers.textContent = number(stats.activeUsers);
   el.usageRecords.textContent = `${number(stats.usageRecords)} usage records`;
   el.videoClips.textContent = number(stats.videoClipsUsed);
@@ -192,18 +332,23 @@ function renderDashboard() {
   el.providerCost.textContent = money(stats.providerCostUSD);
   el.activeOverrides.textContent = `${number(stats.activeOverrides)} active overrides`;
   el.periodText.textContent = state.dashboard.periodKey || "Current period";
-  el.chartRequests.textContent = number((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.requests, 0));
-  el.chartVideos.textContent = number((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.videos, 0));
-  el.chartCost.textContent = money((state.dashboard.usageByDay || []).reduce((sum, row) => sum + row.providerCostUSD, 0));
+  el.chartRequests.textContent = number(stats.windowRequests);
+  el.chartVideos.textContent = number(stats.windowVideos);
+  el.chartCost.textContent = money(stats.windowProviderCostUSD);
   renderChart();
+  renderCostByModel();
+  populateEventFilters();
   renderEvents();
+  renderEventsFull();
   renderUsers();
+  renderAudit();
   renderAccess();
+  tickFreshness();
   setActiveView(state.activeView, false);
 }
 
 function setActiveView(view, updateHash) {
-  const nextView = ["overview", "users", "events", "access"].includes(view) ? view : "overview";
+  const nextView = ["overview", "users", "events", "audit", "access"].includes(view) ? view : "overview";
   state.activeView = nextView;
   el.navLinks.forEach((link) => {
     link.classList.toggle("active", link.dataset.viewLink === nextView);
@@ -330,25 +475,147 @@ function renderChart() {
   });
 }
 
-function renderEvents() {
-  const events = state.dashboard?.recentEvents || [];
-  if (events.length === 0) {
-    el.eventsList.innerHTML = `<div class="empty-state">No recent usage events yet.</div>`;
-    el.eventsListFull.innerHTML = `<div class="empty-state">No recent usage events yet.</div>`;
+function renderCostByModel() {
+  const rows = state.dashboard?.costByModel || [];
+  if (rows.length === 0) {
+    el.costByModelTable.innerHTML = `<tr><td colspan="5" class="empty-state">No provider spend in this window yet.</td></tr>`;
     return;
   }
-  const markup = events.map((event) => `
+  const maxCost = Math.max(...rows.map((row) => row.providerCostUSD), 0.0001);
+  el.costByModelTable.innerHTML = rows.map((row) => {
+    const share = Math.min(100, Math.max(2, Math.round((row.providerCostUSD / maxCost) * 100)));
+    return `
+      <tr>
+        <td>
+          <div class="model-cell">
+            <strong>${escapeHTML(row.model || "unknown")}</strong>
+            <span class="identity-meta">${escapeHTML(row.provider || "unknown")}</span>
+          </div>
+        </td>
+        <td>${number(row.requests)}</td>
+        <td>${number(row.credits)}</td>
+        <td>${money(row.providerCostUSD)}</td>
+        <td>
+          <span class="meter-track"><span class="meter-fill" style="width: ${share}%"></span></span>
+        </td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function eventRowMarkup(event) {
+  return `
     <div class="event-row">
       <strong>${escapeHTML(event.action || "AI request")} <span class="mini-chip">${escapeHTML(event.usageKind || "usage")}</span></strong>
       <span>${escapeHTML(event.provider || "provider")} ${escapeHTML(event.model || "")}</span>
       <span>${money(event.providerCostUSD)} / ${number(event.credits)} credits / ${formatDate(event.createdAt)}</span>
     </div>
+  `;
+}
+
+function renderEvents() {
+  const events = state.dashboard?.recentEvents || [];
+  if (events.length === 0) {
+    el.eventsList.innerHTML = `<div class="empty-state">No recent usage events yet.</div>`;
+    return;
+  }
+  el.eventsList.innerHTML = events.slice(0, 14).map(eventRowMarkup).join("");
+}
+
+function populateEventFilters() {
+  const events = state.dashboard?.recentEvents || [];
+  const providers = Array.from(new Set(events.map((event) => event.provider).filter(Boolean))).sort();
+  const kinds = Array.from(new Set(events.map((event) => event.usageKind).filter(Boolean))).sort();
+  fillSelect(el.eventProvider, providers, state.eventProvider, "All providers");
+  fillSelect(el.eventKind, kinds, state.eventKind, "All kinds");
+}
+
+function fillSelect(select, values, current, allLabel) {
+  const options = [`<option value="">${escapeHTML(allLabel)}</option>`]
+    .concat(values.map((value) => `<option value="${escapeHTML(value)}">${escapeHTML(value)}</option>`));
+  select.innerHTML = options.join("");
+  select.value = values.includes(current) ? current : "";
+  if (select.value !== current) {
+    if (select === el.eventProvider) {
+      state.eventProvider = select.value;
+    } else if (select === el.eventKind) {
+      state.eventKind = select.value;
+    }
+  }
+}
+
+function renderEventsFull() {
+  const events = (state.dashboard?.recentEvents || []).filter((event) => {
+    if (state.eventProvider && event.provider !== state.eventProvider) {
+      return false;
+    }
+    if (state.eventKind && event.usageKind !== state.eventKind) {
+      return false;
+    }
+    if (!state.eventSearch) {
+      return true;
+    }
+    return [event.action, event.provider, event.model, event.uid, event.usageKind]
+      .join(" ")
+      .toLowerCase()
+      .includes(state.eventSearch);
+  });
+  if (events.length === 0) {
+    el.eventsListFull.innerHTML = `<div class="empty-state">No events match these filters.</div>`;
+    return;
+  }
+  el.eventsListFull.innerHTML = events.map(eventRowMarkup).join("");
+}
+
+function renderAudit() {
+  const entries = state.dashboard?.auditLog || [];
+  if (entries.length === 0) {
+    el.auditList.innerHTML = `<div class="empty-state">No admin changes recorded yet.</div>`;
+    return;
+  }
+  el.auditList.innerHTML = entries.map((entry) => `
+    <div class="event-row">
+      <strong>${escapeHTML(entry.changes || "Updated limits")}</strong>
+      <span>By ${escapeHTML(entry.byEmail || shortID(entry.byUID) || "unknown admin")} / ${formatDate(entry.at)}</span>
+      <span>Subject ${escapeHTML(shortID(entry.quotaSubjectHash, 10))}${entry.note ? ` / Note: ${escapeHTML(entry.note)}` : ""}</span>
+    </div>
   `).join("");
-  el.eventsList.innerHTML = markup;
-  el.eventsListFull.innerHTML = markup;
+}
+
+function applySort(key) {
+  if (!key) {
+    return;
+  }
+  if (state.sort.key === key) {
+    state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+  } else {
+    state.sort.key = key;
+    state.sort.dir = key === "account" || key === "plan" || key === "model" ? "asc" : "desc";
+  }
+  renderUsers();
+}
+
+function sortValue(user, key) {
+  switch (key) {
+    case "account":
+      return accountLabel(user).toLowerCase();
+    case "plan":
+      return planLabel(user.subscriptionProductID).toLowerCase();
+    case "videos":
+      return usageRatio(user.videoUsed, user.effectiveVideoLimit);
+    case "credits":
+      return usageRatio(user.creditsUsed, user.effectiveCreditLimit);
+    case "cost":
+      return Number(user.providerCostUSD) || 0;
+    case "model":
+      return [user.lastProvider, user.lastModel].filter(Boolean).join(" ").toLowerCase();
+    default:
+      return 0;
+  }
 }
 
 function renderUsers() {
+  updateSortIndicators();
   const rows = (state.dashboard?.users || []).filter((user) => {
     if (!state.search) {
       return true;
@@ -365,6 +632,16 @@ function renderUsers() {
     ].join(" ").toLowerCase().includes(state.search);
   });
 
+  const direction = state.sort.dir === "asc" ? 1 : -1;
+  rows.sort((lhs, rhs) => {
+    const left = sortValue(lhs, state.sort.key);
+    const right = sortValue(rhs, state.sort.key);
+    if (typeof left === "string" || typeof right === "string") {
+      return String(left).localeCompare(String(right)) * direction;
+    }
+    return (left - right) * direction;
+  });
+
   if (rows.length === 0) {
     el.usersTable.innerHTML = `<tr><td colspan="7" class="empty-state">No matching users.</td></tr>`;
     return;
@@ -373,14 +650,20 @@ function renderUsers() {
   el.usersTable.innerHTML = rows.map((user) => {
     const videoPercent = percent(user.videoUsed, user.effectiveVideoLimit);
     const creditPercent = percent(user.creditsUsed, user.effectiveCreditLimit);
+    const risk = riskLevel(user);
     const overrideChip = user.override ? `<span class="mini-chip">Override</span>` : "";
+    const riskChip = risk === "over"
+      ? `<span class="mini-chip danger">Over limit</span>`
+      : risk === "near"
+        ? `<span class="mini-chip warn">Near limit</span>`
+        : "";
     const accountTitle = accountLabel(user);
     const accountMeta = accountMetaLabel(user);
     return `
-      <tr>
+      <tr class="${risk === "over" ? "row-over" : risk === "near" ? "row-near" : ""}">
         <td>
           <div class="user-cell">
-            <strong>${escapeHTML(accountTitle)} ${overrideChip}</strong>
+            <strong>${escapeHTML(accountTitle)} ${overrideChip}${riskChip}</strong>
             <span class="identity-meta">${escapeHTML(accountMeta)}</span>
             <code>${escapeHTML(shortID(user.uid, 9))}</code>
           </div>
@@ -389,21 +672,73 @@ function renderUsers() {
         <td>
           <div class="meter">
             <span>${number(user.videoUsed)} / ${number(user.effectiveVideoLimit)}</span>
-            <span class="meter-track"><span class="meter-fill" style="width: ${videoPercent}%"></span></span>
+            <span class="meter-track"><span class="meter-fill ${meterTone(videoPercent)}" style="width: ${videoPercent}%"></span></span>
           </div>
         </td>
         <td>
           <div class="meter">
             <span>${number(user.creditsUsed)} / ${number(user.effectiveCreditLimit)}</span>
-            <span class="meter-track"><span class="meter-fill" style="width: ${creditPercent}%"></span></span>
+            <span class="meter-track"><span class="meter-fill ${meterTone(creditPercent)}" style="width: ${creditPercent}%"></span></span>
           </div>
         </td>
         <td>${money(user.providerCostUSD)}</td>
         <td>${escapeHTML([user.lastProvider, user.lastModel].filter(Boolean).join(" / ") || "None")}</td>
-        <td><button class="row-action" type="button" data-edit-user="${escapeHTML(user.quotaSubjectHash)}">Edit</button></td>
+        <td>
+          <div class="row-actions">
+            <button class="row-action" type="button" data-detail-user="${escapeHTML(user.quotaSubjectHash)}">Details</button>
+            <button class="row-action" type="button" data-edit-user="${escapeHTML(user.quotaSubjectHash)}">Edit</button>
+          </div>
+        </td>
       </tr>
     `;
   }).join("");
+}
+
+function updateSortIndicators() {
+  el.sortHeaders.forEach((header) => {
+    const isActive = header.dataset.sort === state.sort.key;
+    const th = header.closest("th");
+    header.classList.toggle("active", isActive);
+    header.dataset.arrow = isActive ? (state.sort.dir === "asc" ? "▲" : "▼") : "";
+    if (th) {
+      th.setAttribute("aria-sort", isActive ? (state.sort.dir === "asc" ? "ascending" : "descending") : "none");
+    }
+  });
+}
+
+function openUserDetail(user) {
+  state.selectedUser = user;
+  el.userDialogTitle.textContent = accountLabel(user);
+  el.userDialogIdentity.innerHTML = [
+    detailRow("Email", user.email || user.displayName || "No email on file"),
+    detailRow("UID", user.uid || "Unknown", true),
+    detailRow("Auth", user.authProvider || "Firebase Auth"),
+    detailRow("Plan", `${planLabel(user.subscriptionProductID)} · ${user.period || "current"}`)
+  ].join("");
+  el.userDialogUsage.innerHTML = [
+    usageTile("Videos", `${number(user.videoUsed)} / ${number(user.effectiveVideoLimit)}`),
+    usageTile("Credits", `${number(user.creditsUsed)} / ${number(user.effectiveCreditLimit)}`),
+    usageTile("Text", number(user.textUsed)),
+    usageTile("Images", number(user.imageUsed)),
+    usageTile("Captions", number(user.captionUsed)),
+    usageTile("Provider cost", money(user.providerCostUSD)),
+    usageTile("Last model", [user.lastProvider, user.lastModel].filter(Boolean).join(" / ") || "None"),
+    usageTile("Override", user.override ? (user.override.disabled ? "Paused" : "Active") : "None")
+  ].join("");
+  const events = (state.dashboard?.recentEvents || []).filter((event) => event.uid && event.uid === user.uid);
+  el.userDialogEvents.innerHTML = events.length > 0
+    ? events.slice(0, 20).map(eventRowMarkup).join("")
+    : `<div class="empty-state">No recent events for this user in the current window.</div>`;
+  el.userDialog.showModal();
+}
+
+function detailRow(label, value, mono) {
+  const valueMarkup = mono ? `<code>${escapeHTML(value)}</code>` : `<strong>${escapeHTML(value)}</strong>`;
+  return `<div><span>${escapeHTML(label)}</span>${valueMarkup}</div>`;
+}
+
+function usageTile(label, value) {
+  return `<div class="usage-tile"><span>${escapeHTML(label)}</span><strong>${escapeHTML(value)}</strong></div>`;
 }
 
 function openLimitDialog(user) {
@@ -429,6 +764,21 @@ function renderAccess() {
   el.accessUID.textContent = uid || "UID pending";
   el.accessStatus.textContent = state.status?.isAdmin ? "Admin" : "Locked";
   el.accessStatus.className = `status-pill ${state.status?.isAdmin ? "ready" : "locked"}`;
+  el.accessIdentity.textContent = adminIdentityLabel();
+}
+
+function adminIdentityLabel() {
+  const user = state.user;
+  if (!user) {
+    return "Not signed in";
+  }
+  if (user.email) {
+    return user.email;
+  }
+  if (user.displayName) {
+    return user.displayName;
+  }
+  return user.isAnonymous ? "Anonymous device" : "Firebase Auth user";
 }
 
 async function saveLimits() {
@@ -458,7 +808,7 @@ async function saveLimits() {
     state.dashboard = result.data;
     el.limitDialog.close();
     renderDashboard();
-    setStatus("Saved", "User limits updated and dashboard refreshed.", "ready");
+    showToast("User limits updated and dashboard refreshed.", "ready");
   } catch (error) {
     el.dialogError.textContent = errorMessage(error);
     el.dialogError.classList.remove("hidden");
@@ -475,13 +825,75 @@ function parseLimit(value, label) {
   return Math.round(numberValue);
 }
 
+function exportUsersCSV() {
+  const users = state.dashboard?.users || [];
+  if (users.length === 0) {
+    showToast("No users to export.", "warn");
+    return;
+  }
+  const header = [
+    "email", "displayName", "authProvider", "uid", "quotaSubjectHash", "plan", "period",
+    "creditsUsed", "effectiveCreditLimit", "videoUsed", "effectiveVideoLimit",
+    "textUsed", "imageUsed", "captionUsed", "providerCostUSD", "lastProvider", "lastModel", "hasOverride"
+  ];
+  const lines = users.map((user) => [
+    user.email, user.displayName, user.authProvider, user.uid, user.quotaSubjectHash,
+    planLabel(user.subscriptionProductID), user.period,
+    user.creditsUsed, user.effectiveCreditLimit, user.videoUsed, user.effectiveVideoLimit,
+    user.textUsed, user.imageUsed, user.captionUsed, user.providerCostUSD,
+    user.lastProvider, user.lastModel, user.override ? "yes" : "no"
+  ]);
+  downloadCSV(`soundframe-users-${state.dashboard.periodKey || "current"}.csv`, header, lines);
+}
+
+function exportEventsCSV() {
+  const events = state.dashboard?.recentEvents || [];
+  if (events.length === 0) {
+    showToast("No events to export.", "warn");
+    return;
+  }
+  const header = ["createdAt", "uid", "action", "usageKind", "provider", "model", "credits", "providerCostUSD"];
+  const lines = events.map((event) => [
+    event.createdAt, event.uid, event.action, event.usageKind,
+    event.provider, event.model, event.credits, event.providerCostUSD
+  ]);
+  downloadCSV("soundframe-events.csv", header, lines);
+}
+
+function downloadCSV(filename, header, rows) {
+  const content = [header].concat(rows)
+    .map((row) => row.map(csvEscape).join(","))
+    .join("\r\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+}
+
+function csvEscape(value) {
+  const text = value === null || value === undefined ? "" : String(value);
+  if (/[",\r\n]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+}
+
 async function copyUID() {
   const uid = state.status?.uid || state.user?.uid || "";
   if (!uid) {
     return;
   }
-  await navigator.clipboard.writeText(uid);
-  setStatus(state.status?.isAdmin ? "Admin" : "Copied", "Firebase UID copied to clipboard.", state.status?.isAdmin ? "ready" : "locked");
+  try {
+    await navigator.clipboard.writeText(uid);
+    showToast("Firebase UID copied to clipboard.", "ready");
+  } catch (error) {
+    showToast(`Could not copy UID. ${errorMessage(error)}`, "warn");
+  }
 }
 
 function setLoading(isLoading) {
@@ -490,22 +902,89 @@ function setLoading(isLoading) {
   el.refreshButton.textContent = isLoading ? "Refreshing" : "Refresh";
 }
 
+function tickFreshness() {
+  if (!state.dashboard?.generatedAt || el.freshness.classList.contains("hidden")) {
+    return;
+  }
+  const generated = new Date(state.dashboard.generatedAt).getTime();
+  if (!Number.isFinite(generated)) {
+    return;
+  }
+  el.freshness.textContent = `Updated ${timeAgo(generated)}`;
+}
+
+function timeAgo(timestamp) {
+  const seconds = Math.max(0, Math.round((Date.now() - timestamp) / 1000));
+  if (seconds < 60) {
+    return `${seconds}s ago`;
+  }
+  const minutes = Math.round(seconds / 60);
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `${hours}h ago`;
+}
+
 function setStatus(label, text, tone) {
   el.statusLabel.textContent = label;
   el.statusLabel.className = `status-pill ${tone || ""}`;
   el.statusText.textContent = text;
 }
 
+function showToast(message, tone) {
+  el.toast.textContent = message;
+  el.toast.className = `toast ${tone || ""}`;
+  if (state.toastTimer) {
+    clearTimeout(state.toastTimer);
+  }
+  state.toastTimer = setTimeout(() => {
+    el.toast.classList.add("hidden");
+  }, 4200);
+}
+
 function showError(message) {
-  state.dashboard = null;
-  el.dashboard.classList.add("hidden");
-  el.setupPanel.classList.remove("hidden");
-  setStatus("Error", message, "locked");
-  el.setupCommand.textContent = "Check that the admin Firebase Functions are deployed, then refresh this page.";
+  showToast(message, "warn");
+  if (!state.dashboard) {
+    setStatus("Error", message, "locked");
+  }
 }
 
 function errorMessage(error) {
   return error?.message || String(error || "Something went wrong.");
+}
+
+function usageRatio(used, limit) {
+  const usedValue = Number(used) || 0;
+  const limitValue = Number(limit) || 0;
+  if (limitValue <= 0) {
+    return usedValue > 0 ? Number.POSITIVE_INFINITY : 0;
+  }
+  return usedValue / limitValue;
+}
+
+function riskLevel(user) {
+  const worst = Math.max(
+    usageRatio(user.videoUsed, user.effectiveVideoLimit),
+    usageRatio(user.creditsUsed, user.effectiveCreditLimit)
+  );
+  if (worst >= 1) {
+    return "over";
+  }
+  if (worst >= 0.9) {
+    return "near";
+  }
+  return "ok";
+}
+
+function meterTone(value) {
+  if (value >= 100) {
+    return "danger";
+  }
+  if (value >= 90) {
+    return "warn";
+  }
+  return "";
 }
 
 function number(value) {
@@ -587,8 +1066,12 @@ function escapeHTML(value) {
 }
 
 window.addEventListener("keydown", async (event) => {
-  if (event.key === "Escape" && el.limitDialog.open) {
-    el.limitDialog.close();
+  if (event.key === "Escape") {
+    if (el.userDialog.open) {
+      el.userDialog.close();
+    } else if (el.limitDialog.open) {
+      el.limitDialog.close();
+    }
   }
   if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "r") {
     event.preventDefault();
