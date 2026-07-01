@@ -937,10 +937,6 @@ textarea {
 }
 
 /* --- Cost by model --- */
-.cost-panel {
-  margin-top: 12px;
-}
-
 .compact-table {
   min-width: 560px;
 }
@@ -1103,5 +1099,183 @@ textarea {
     left: 12px;
     bottom: 12px;
     max-width: none;
+  }
+}
+
+/* --- Insights strip --- */
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.insight-tile {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(16, 22, 32, 0.7);
+}
+
+.insight-tile span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.insight-tile strong {
+  display: block;
+  margin: 8px 0 4px;
+  font-size: 1.7rem;
+  line-height: 1;
+}
+
+.insight-tile small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.insight-tile.tile-warn {
+  border-color: rgba(255, 196, 107, 0.4);
+  background: rgba(255, 196, 107, 0.07);
+}
+
+.insight-tile.tile-danger {
+  border-color: rgba(255, 100, 124, 0.42);
+  background: rgba(255, 100, 124, 0.08);
+}
+
+/* --- Analytics + spend grids --- */
+.analytics-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.spend-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.donut-frame {
+  position: relative;
+  height: 190px;
+  padding: 6px;
+}
+
+.donut-frame canvas {
+  display: block;
+  width: 100% !important;
+  height: 178px !important;
+  max-height: 178px !important;
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin-top: 12px;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.legend-item strong {
+  color: var(--text);
+}
+
+.legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+}
+
+/* --- Bar lists (top spenders, provider split) --- */
+.bar-list {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.bar-row {
+  display: grid;
+  gap: 7px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.bar-row.clickable {
+  cursor: pointer;
+}
+
+.bar-row.clickable:hover,
+.bar-row.clickable:focus-visible {
+  border-color: rgba(39, 199, 217, 0.5);
+  outline: none;
+}
+
+.bar-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.bar-row-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bar-row-head strong {
+  flex: 0 0 auto;
+}
+
+.bar-row-meta {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+/* --- Access reference block --- */
+.reference-block {
+  margin-top: 16px;
+}
+
+.reference-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 1080px) {
+  .insights-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .analytics-grid,
+  .spend-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .insights-grid {
+    grid-template-columns: 1fr 1fr;
   }
 }

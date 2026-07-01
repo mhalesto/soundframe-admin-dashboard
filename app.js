@@ -46,9 +46,13 @@ const state = {
   eventKind: "",
   autoRefresh: true,
   chart: null,
+  planChart: null,
+  featureChart: null,
   loading: false,
   toastTimer: null
 };
+
+const CHART_PALETTE = ["#37d4df", "#d9a24a", "#8f7bff", "#43d18b", "#ff647c", "#5ce6cf", "#ffc46b", "#6ea8ff"];
 
 const el = {
   navLinks: Array.from(document.querySelectorAll("[data-view-link]")),
@@ -82,6 +86,25 @@ const el = {
   chartVideos: document.getElementById("chartVideos"),
   chartCost: document.getElementById("chartCost"),
   costByModelTable: document.getElementById("costByModelTable"),
+  atRiskCount: document.getElementById("atRiskCount"),
+  atRiskDetail: document.getElementById("atRiskDetail"),
+  atRiskTile: document.getElementById("atRiskTile"),
+  avgCost: document.getElementById("avgCost"),
+  avgCredits: document.getElementById("avgCredits"),
+  avgRequests: document.getElementById("avgRequests"),
+  overrideActive: document.getElementById("overrideActive"),
+  overridePaused: document.getElementById("overridePaused"),
+  planMixChart: document.getElementById("planMixChart"),
+  planMixLegend: document.getElementById("planMixLegend"),
+  featureUsageChart: document.getElementById("featureUsageChart"),
+  featureUsageLegend: document.getElementById("featureUsageLegend"),
+  providerSplit: document.getElementById("providerSplit"),
+  providerWindowLabel: document.getElementById("providerWindowLabel"),
+  topSpenders: document.getElementById("topSpenders"),
+  accessProvider: document.getElementById("accessProvider"),
+  accessWindow: document.getElementById("accessWindow"),
+  accessPeriod: document.getElementById("accessPeriod"),
+  accessRefreshed: document.getElementById("accessRefreshed"),
   eventsList: document.getElementById("eventsList"),
   eventsListFull: document.getElementById("eventsListFull"),
   eventSearch: document.getElementById("eventSearch"),
@@ -172,6 +195,8 @@ el.usersTable.addEventListener("click", (event) => {
     openUserDetail(user);
   }
 });
+el.topSpenders.addEventListener("click", activateTopSpender);
+el.topSpenders.addEventListener("keydown", activateTopSpender);
 el.saveLimitsButton.addEventListener("click", saveLimits);
 el.closeUserDialogButton.addEventListener("click", () => el.userDialog.close());
 el.userDialogCloseButton.addEventListener("click", () => el.userDialog.close());
@@ -336,6 +361,11 @@ function renderDashboard() {
   el.chartVideos.textContent = number(stats.windowVideos);
   el.chartCost.textContent = money(stats.windowProviderCostUSD);
   renderChart();
+  renderInsights();
+  renderPlanMix();
+  renderFeatureUsage();
+  renderProviderSplit();
+  renderTopSpenders();
   renderCostByModel();
   populateEventFilters();
   renderEvents();
@@ -359,8 +389,12 @@ function setActiveView(view, updateHash) {
   if (updateHash && window.location.hash !== `#${nextView}`) {
     history.pushState(null, "", `#${nextView}`);
   }
-  if (nextView === "overview" && state.chart) {
-    requestAnimationFrame(() => state.chart?.resize());
+  if (nextView === "overview") {
+    requestAnimationFrame(() => {
+      state.chart?.resize();
+      state.planChart?.resize();
+      state.featureChart?.resize();
+    });
   }
 }
 
@@ -501,6 +535,162 @@ function renderCostByModel() {
       </tr>
     `;
   }).join("");
+}
+
+function renderInsights() {
+  const stats = state.dashboard?.stats || {};
+  const users = state.dashboard?.users || [];
+  const windowDays = state.dashboard?.eventWindowDays || 14;
+  const activeUsers = Math.max(1, stats.activeUsers || 0);
+
+  const atRisk = users.filter((user) => riskLevel(user) !== "ok");
+  const over = users.filter((user) => riskLevel(user) === "over");
+  el.atRiskCount.textContent = number(atRisk.length);
+  el.atRiskDetail.textContent = `${number(over.length)} over limit`;
+  el.atRiskTile.classList.toggle("tile-danger", over.length > 0);
+  el.atRiskTile.classList.toggle("tile-warn", over.length === 0 && atRisk.length > 0);
+
+  el.avgCost.textContent = money((stats.providerCostUSD || 0) / activeUsers);
+  el.avgCredits.textContent = `${number(Math.round((stats.creditsUsed || 0) / activeUsers))} credits each`;
+  el.avgRequests.textContent = number(Math.round((stats.windowRequests || 0) / windowDays));
+
+  const paused = users.filter((user) => user.override && user.override.disabled).length;
+  el.overrideActive.textContent = number(stats.activeOverrides || 0);
+  el.overridePaused.textContent = `${number(paused)} paused`;
+}
+
+function renderDoughnut(existing, canvas, legendEl, entries, formatValue) {
+  if (existing) {
+    existing.destroy();
+  }
+  const filtered = entries.filter((entry) => entry.value > 0);
+  if (filtered.length === 0) {
+    legendEl.innerHTML = `<div class="empty-state">No data in this window yet.</div>`;
+    return null;
+  }
+  const colors = filtered.map((_, index) => CHART_PALETTE[index % CHART_PALETTE.length]);
+  const total = filtered.reduce((sum, entry) => sum + entry.value, 0) || 1;
+  const chart = new Chart(canvas, {
+    type: "doughnut",
+    data: {
+      labels: filtered.map((entry) => entry.label),
+      datasets: [{
+        data: filtered.map((entry) => entry.value),
+        backgroundColor: colors,
+        borderColor: "rgba(7, 9, 13, 0.9)",
+        borderWidth: 2,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      cutout: "62%",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "rgba(7, 9, 13, 0.96)",
+          borderColor: "rgba(230, 237, 245, 0.14)",
+          borderWidth: 1,
+          padding: 10,
+          callbacks: {
+            label: (context) => ` ${context.label}: ${formatValue(context.parsed)} (${Math.round((context.parsed / total) * 100)}%)`
+          }
+        }
+      }
+    }
+  });
+  legendEl.innerHTML = filtered.map((entry, index) => `
+    <span class="legend-item">
+      <span class="legend-dot" style="background:${colors[index]}"></span>
+      ${escapeHTML(entry.label)} <strong>${escapeHTML(formatValue(entry.value))}</strong>
+    </span>
+  `).join("");
+  return chart;
+}
+
+function renderPlanMix() {
+  const users = state.dashboard?.users || [];
+  const counts = new Map();
+  users.forEach((user) => {
+    const label = planLabel(user.subscriptionProductID);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  });
+  const entries = Array.from(counts, ([label, value]) => ({ label, value }))
+    .sort((lhs, rhs) => rhs.value - lhs.value);
+  state.planChart = renderDoughnut(state.planChart, el.planMixChart, el.planMixLegend, entries, (value) => number(value));
+}
+
+function renderFeatureUsage() {
+  const users = state.dashboard?.users || [];
+  const total = (key) => users.reduce((sum, user) => sum + (Number(user[key]) || 0), 0);
+  const entries = [
+    { label: "Text", value: total("textUsed") },
+    { label: "Images", value: total("imageUsed") },
+    { label: "Video", value: total("videoUsed") },
+    { label: "Captions", value: total("captionUsed") }
+  ];
+  state.featureChart = renderDoughnut(state.featureChart, el.featureUsageChart, el.featureUsageLegend, entries, (value) => number(value));
+}
+
+function renderProviderSplit() {
+  const rows = state.dashboard?.costByModel || [];
+  const byProvider = new Map();
+  rows.forEach((row) => {
+    const key = row.provider || "unknown";
+    const entry = byProvider.get(key) || { provider: key, cost: 0, requests: 0 };
+    entry.cost += Number(row.providerCostUSD) || 0;
+    entry.requests += Number(row.requests) || 0;
+    byProvider.set(key, entry);
+  });
+  const entries = Array.from(byProvider.values()).sort((lhs, rhs) => rhs.cost - lhs.cost);
+  if (entries.length === 0) {
+    el.providerSplit.innerHTML = `<div class="empty-state">No provider spend in this window yet.</div>`;
+    return;
+  }
+  const maxCost = Math.max(...entries.map((entry) => entry.cost), 0.0001);
+  el.providerSplit.innerHTML = entries.map((entry, index) => barRowMarkup({
+    title: entry.provider,
+    meta: `${number(entry.requests)} requests`,
+    value: money(entry.cost),
+    percent: Math.max(3, Math.round((entry.cost / maxCost) * 100)),
+    color: CHART_PALETTE[index % CHART_PALETTE.length]
+  })).join("");
+}
+
+function renderTopSpenders() {
+  const users = (state.dashboard?.users || [])
+    .filter((user) => (Number(user.providerCostUSD) || 0) > 0)
+    .sort((lhs, rhs) => (Number(rhs.providerCostUSD) || 0) - (Number(lhs.providerCostUSD) || 0))
+    .slice(0, 6);
+  if (users.length === 0) {
+    el.topSpenders.innerHTML = `<div class="empty-state">No provider spend recorded yet.</div>`;
+    return;
+  }
+  const maxCost = Math.max(...users.map((user) => Number(user.providerCostUSD) || 0), 0.0001);
+  el.topSpenders.innerHTML = users.map((user, index) => barRowMarkup({
+    title: accountLabel(user),
+    meta: planLabel(user.subscriptionProductID),
+    value: money(user.providerCostUSD),
+    percent: Math.max(3, Math.round(((Number(user.providerCostUSD) || 0) / maxCost) * 100)),
+    color: CHART_PALETTE[index % CHART_PALETTE.length],
+    clickHash: user.quotaSubjectHash
+  })).join("");
+}
+
+function barRowMarkup({ title, meta, value, percent, color, clickHash }) {
+  const interactive = clickHash ? ` data-detail-user="${escapeHTML(clickHash)}" role="button" tabindex="0"` : "";
+  return `
+    <div class="bar-row${clickHash ? " clickable" : ""}"${interactive}>
+      <div class="bar-row-head">
+        <span class="bar-row-title">${escapeHTML(title)}</span>
+        <strong>${escapeHTML(value)}</strong>
+      </div>
+      <span class="meter-track"><span class="meter-fill" style="width:${percent}%;background:${color}"></span></span>
+      <span class="bar-row-meta">${escapeHTML(meta)}</span>
+    </div>
+  `;
 }
 
 function eventRowMarkup(event) {
@@ -706,6 +896,23 @@ function updateSortIndicators() {
   });
 }
 
+function activateTopSpender(event) {
+  const row = event.target.closest("[data-detail-user]");
+  if (!row || !state.dashboard) {
+    return;
+  }
+  if (event.type === "keydown") {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+    event.preventDefault();
+  }
+  const user = state.dashboard.users.find((candidate) => candidate.quotaSubjectHash === row.dataset.detailUser);
+  if (user) {
+    openUserDetail(user);
+  }
+}
+
 function openUserDetail(user) {
   state.selectedUser = user;
   el.userDialogTitle.textContent = accountLabel(user);
@@ -765,6 +972,25 @@ function renderAccess() {
   el.accessStatus.textContent = state.status?.isAdmin ? "Admin" : "Locked";
   el.accessStatus.className = `status-pill ${state.status?.isAdmin ? "ready" : "locked"}`;
   el.accessIdentity.textContent = adminIdentityLabel();
+  el.accessProvider.textContent = adminProviderLabel();
+  el.accessWindow.textContent = `Last ${state.dashboard?.eventWindowDays || 14} days`;
+  el.accessPeriod.textContent = state.dashboard?.periodKey || "Current";
+  el.accessRefreshed.textContent = state.dashboard?.generatedAt ? formatDate(state.dashboard.generatedAt) : "Never";
+}
+
+function adminProviderLabel() {
+  const user = state.user;
+  if (!user) {
+    return "Not signed in";
+  }
+  if (user.isAnonymous) {
+    return "Anonymous";
+  }
+  const providers = (user.providerData || []).map((provider) => provider.providerId).filter(Boolean);
+  if (providers.includes("google.com")) {
+    return "Google";
+  }
+  return providers[0] || "Firebase Auth";
 }
 
 function adminIdentityLabel() {

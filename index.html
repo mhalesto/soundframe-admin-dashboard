@@ -99,6 +99,29 @@
               </article>
             </section>
 
+            <section class="insights-grid" aria-label="Derived insights">
+              <article class="insight-tile" id="atRiskTile">
+                <span>Users at risk</span>
+                <strong id="atRiskCount">0</strong>
+                <small id="atRiskDetail">0 over limit</small>
+              </article>
+              <article class="insight-tile">
+                <span>Avg cost / active user</span>
+                <strong id="avgCost">$0.00</strong>
+                <small id="avgCredits">0 credits each</small>
+              </article>
+              <article class="insight-tile">
+                <span>Requests / day</span>
+                <strong id="avgRequests">0</strong>
+                <small id="avgRequestsWindow">14-day average</small>
+              </article>
+              <article class="insight-tile">
+                <span>Overrides</span>
+                <strong id="overrideActive">0</strong>
+                <small id="overridePaused">0 paused</small>
+              </article>
+            </section>
+
             <section class="content-grid">
               <article class="panel chart-panel">
                 <div class="panel-header">
@@ -129,29 +152,80 @@
               </article>
             </section>
 
-            <article class="panel cost-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow" id="costWindowLabel">Last 14 days</p>
-                  <h2>Cost by model</h2>
+            <section class="analytics-grid">
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">This billing month</p>
+                    <h2>Plan mix</h2>
+                  </div>
                 </div>
-                <span class="period-chip">Provider spend</span>
-              </div>
-              <div class="table-wrap">
-                <table class="compact-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Provider / model</th>
-                      <th scope="col">Requests</th>
-                      <th scope="col">Credits</th>
-                      <th scope="col">Cost</th>
-                      <th scope="col">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody id="costByModelTable"></tbody>
-                </table>
-              </div>
-            </article>
+                <div class="donut-frame">
+                  <canvas id="planMixChart" role="img" aria-label="Distribution of active users by plan"></canvas>
+                </div>
+                <div id="planMixLegend" class="chart-legend"></div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">This billing month</p>
+                    <h2>Feature usage</h2>
+                  </div>
+                </div>
+                <div class="donut-frame">
+                  <canvas id="featureUsageChart" role="img" aria-label="Usage split across text, images, video and captions"></canvas>
+                </div>
+                <div id="featureUsageLegend" class="chart-legend"></div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="providerWindowLabel">Last 14 days</p>
+                    <h2>Spend by provider</h2>
+                  </div>
+                </div>
+                <div id="providerSplit" class="bar-list"></div>
+              </article>
+            </section>
+
+            <section class="spend-grid">
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">This billing month</p>
+                    <h2>Top spenders</h2>
+                  </div>
+                  <span class="period-chip">By provider cost</span>
+                </div>
+                <div id="topSpenders" class="bar-list"></div>
+              </article>
+
+              <article class="panel cost-panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="costWindowLabel">Last 14 days</p>
+                    <h2>Cost by model</h2>
+                  </div>
+                  <span class="period-chip">Provider spend</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="compact-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Provider / model</th>
+                        <th scope="col">Requests</th>
+                        <th scope="col">Credits</th>
+                        <th scope="col">Cost</th>
+                        <th scope="col">Share</th>
+                      </tr>
+                    </thead>
+                    <tbody id="costByModelTable"></tbody>
+                  </table>
+                </div>
+              </article>
+            </section>
           </section>
 
           <section id="users" class="panel users-panel view-section hidden" data-view-section="users">
@@ -226,6 +300,42 @@
                 <span>Signed in as</span>
                 <strong id="accessIdentity">Firebase Auth user</strong>
               </div>
+              <div>
+                <span>Auth provider</span>
+                <strong id="accessProvider">Firebase Auth</strong>
+              </div>
+              <div>
+                <span>Data window</span>
+                <strong id="accessWindow">Last 14 days</strong>
+              </div>
+              <div>
+                <span>Billing period</span>
+                <strong id="accessPeriod">Current</strong>
+              </div>
+              <div>
+                <span>Last refreshed</span>
+                <strong id="accessRefreshed">Never</strong>
+              </div>
+            </div>
+            <div class="reference-block">
+              <p class="eyebrow">Default plan limits (reference)</p>
+              <div class="table-wrap">
+                <table class="compact-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Plan</th>
+                      <th scope="col">AI credits / month</th>
+                      <th scope="col">Video clips / month</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><td>Go</td><td>750</td><td>1</td></tr>
+                    <tr><td>Pro monthly</td><td>2,500</td><td>4</td></tr>
+                    <tr><td>Pro 3-month</td><td>3,000</td><td>6</td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <p class="reference-note">Overrides on the Users tab replace these defaults for a single user. Setting a limit to 0 blocks that capability.</p>
             </div>
           </section>
         </section>
