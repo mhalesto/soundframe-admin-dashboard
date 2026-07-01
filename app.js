@@ -33,12 +33,15 @@ const state = {
   status: null,
   dashboard: null,
   selectedUser: null,
+  activeView: viewFromHash(),
   search: "",
   chart: null,
   loading: false
 };
 
 const el = {
+  navLinks: Array.from(document.querySelectorAll("[data-view-link]")),
+  viewSections: Array.from(document.querySelectorAll("[data-view-section]")),
   statusPanel: document.getElementById("statusPanel"),
   statusLabel: document.getElementById("statusLabel"),
   statusText: document.getElementById("statusText"),
@@ -60,10 +63,15 @@ const el = {
   chartVideos: document.getElementById("chartVideos"),
   chartCost: document.getElementById("chartCost"),
   eventsList: document.getElementById("eventsList"),
+  eventsListFull: document.getElementById("eventsListFull"),
+  accessUID: document.getElementById("accessUID"),
+  accessStatus: document.getElementById("accessStatus"),
   usersTable: document.getElementById("usersTable"),
   userSearch: document.getElementById("userSearch"),
   limitDialog: document.getElementById("limitDialog"),
   dialogTitle: document.getElementById("dialogTitle"),
+  dialogEmail: document.getElementById("dialogEmail"),
+  dialogUID: document.getElementById("dialogUID"),
   dialogHash: document.getElementById("dialogHash"),
   dialogPlan: document.getElementById("dialogPlan"),
   videoLimitInput: document.getElementById("videoLimitInput"),
@@ -76,6 +84,12 @@ const el = {
   saveLimitsButton: document.getElementById("saveLimitsButton")
 };
 
+el.navLinks.forEach((link) => {
+  link.addEventListener("click", (event) => {
+    event.preventDefault();
+    setActiveView(link.dataset.viewLink || "overview", true);
+  });
+});
 el.refreshButton.addEventListener("click", () => refresh());
 el.copyUidButton.addEventListener("click", copyUID);
 el.userSearch.addEventListener("input", (event) => {
@@ -93,6 +107,9 @@ el.usersTable.addEventListener("click", (event) => {
   }
 });
 el.saveLimitsButton.addEventListener("click", saveLimits);
+window.addEventListener("hashchange", () => {
+  setActiveView(viewFromHash(), false);
+});
 
 onAuthStateChanged(auth, async (user) => {
   state.user = user;
@@ -181,6 +198,29 @@ function renderDashboard() {
   renderChart();
   renderEvents();
   renderUsers();
+  renderAccess();
+  setActiveView(state.activeView, false);
+}
+
+function setActiveView(view, updateHash) {
+  const nextView = ["overview", "users", "events", "access"].includes(view) ? view : "overview";
+  state.activeView = nextView;
+  el.navLinks.forEach((link) => {
+    link.classList.toggle("active", link.dataset.viewLink === nextView);
+  });
+  el.viewSections.forEach((section) => {
+    section.classList.toggle("hidden", section.dataset.viewSection !== nextView);
+  });
+  if (updateHash && window.location.hash !== `#${nextView}`) {
+    history.pushState(null, "", `#${nextView}`);
+  }
+  if (nextView === "overview" && state.chart) {
+    requestAnimationFrame(() => state.chart?.resize());
+  }
+}
+
+function viewFromHash() {
+  return (window.location.hash || "#overview").replace("#", "") || "overview";
 }
 
 function renderChart() {
@@ -294,15 +334,18 @@ function renderEvents() {
   const events = state.dashboard?.recentEvents || [];
   if (events.length === 0) {
     el.eventsList.innerHTML = `<div class="empty-state">No recent usage events yet.</div>`;
+    el.eventsListFull.innerHTML = `<div class="empty-state">No recent usage events yet.</div>`;
     return;
   }
-  el.eventsList.innerHTML = events.map((event) => `
+  const markup = events.map((event) => `
     <div class="event-row">
       <strong>${escapeHTML(event.action || "AI request")} <span class="mini-chip">${escapeHTML(event.usageKind || "usage")}</span></strong>
       <span>${escapeHTML(event.provider || "provider")} ${escapeHTML(event.model || "")}</span>
       <span>${money(event.providerCostUSD)} / ${number(event.credits)} credits / ${formatDate(event.createdAt)}</span>
     </div>
   `).join("");
+  el.eventsList.innerHTML = markup;
+  el.eventsListFull.innerHTML = markup;
 }
 
 function renderUsers() {
@@ -311,6 +354,9 @@ function renderUsers() {
       return true;
     }
     return [
+      user.email,
+      user.displayName,
+      user.authProvider,
       user.uid,
       user.quotaSubjectHash,
       user.subscriptionProductID,
@@ -328,12 +374,15 @@ function renderUsers() {
     const videoPercent = percent(user.videoUsed, user.effectiveVideoLimit);
     const creditPercent = percent(user.creditsUsed, user.effectiveCreditLimit);
     const overrideChip = user.override ? `<span class="mini-chip">Override</span>` : "";
+    const accountTitle = accountLabel(user);
+    const accountMeta = accountMetaLabel(user);
     return `
       <tr>
         <td>
           <div class="user-cell">
-            <strong>${escapeHTML(shortID(user.uid) || "Unknown user")} ${overrideChip}</strong>
-            <code>${escapeHTML(shortID(user.quotaSubjectHash, 14))}</code>
+            <strong>${escapeHTML(accountTitle)} ${overrideChip}</strong>
+            <span class="identity-meta">${escapeHTML(accountMeta)}</span>
+            <code>${escapeHTML(shortID(user.uid, 9))}</code>
           </div>
         </td>
         <td>${escapeHTML(planLabel(user.subscriptionProductID))}</td>
@@ -361,7 +410,9 @@ function openLimitDialog(user) {
   state.selectedUser = user;
   el.dialogError.classList.add("hidden");
   el.dialogError.textContent = "";
-  el.dialogTitle.textContent = shortID(user.uid) || "Unknown user";
+  el.dialogTitle.textContent = accountLabel(user);
+  el.dialogEmail.textContent = user.email || user.displayName || "No email on file";
+  el.dialogUID.textContent = user.uid || "Unknown UID";
   el.dialogHash.textContent = user.quotaSubjectHash;
   el.dialogPlan.textContent = `${planLabel(user.subscriptionProductID)} / ${user.period}`;
   el.videoLimitInput.value = user.override?.videoLimitOverride ?? user.effectiveVideoLimit;
@@ -371,6 +422,13 @@ function openLimitDialog(user) {
   el.disabledInput.checked = Boolean(user.override?.disabled);
   el.noteInput.value = user.override?.note || "";
   el.limitDialog.showModal();
+}
+
+function renderAccess() {
+  const uid = state.status?.uid || state.user?.uid || "";
+  el.accessUID.textContent = uid || "UID pending";
+  el.accessStatus.textContent = state.status?.isAdmin ? "Admin" : "Locked";
+  el.accessStatus.className = `status-pill ${state.status?.isAdmin ? "ready" : "locked"}`;
 }
 
 async function saveLimits() {
@@ -471,6 +529,20 @@ function shortID(value, length = 10) {
     return "";
   }
   return text.length <= length * 2 ? text : `${text.slice(0, length)}...${text.slice(-6)}`;
+}
+
+function accountLabel(user) {
+  return user.email || user.displayName || shortID(user.uid) || "Unknown user";
+}
+
+function accountMetaLabel(user) {
+  if (user.email && user.displayName) {
+    return user.displayName;
+  }
+  if (user.authProvider) {
+    return user.authProvider;
+  }
+  return "Firebase Auth user";
 }
 
 function planLabel(productID) {

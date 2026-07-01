@@ -18,10 +18,10 @@
           </div>
         </div>
         <nav>
-          <a href="#overview" class="active">Overview</a>
-          <a href="#users">Users</a>
-          <a href="#events">Events</a>
-          <a href="#setup">Access</a>
+          <a href="#overview" class="active" data-view-link="overview">Overview</a>
+          <a href="#users" data-view-link="users">Users</a>
+          <a href="#events" data-view-link="events">Events</a>
+          <a href="#access" data-view-link="access">Access</a>
         </nav>
         <div class="sidebar-card">
           <span>Project</span>
@@ -59,72 +59,74 @@
         </section>
 
         <section id="dashboard" class="hidden">
-          <section id="overview" class="stats-grid" aria-label="Key stats">
-            <article class="stat-card">
-              <span>Active users</span>
-              <strong id="activeUsers">0</strong>
-              <small id="usageRecords">0 usage records</small>
-            </article>
-            <article class="stat-card">
-              <span>Videos used</span>
-              <strong id="videoClips">0</strong>
-              <small>This billing month</small>
-            </article>
-            <article class="stat-card">
-              <span>AI credits used</span>
-              <strong id="creditsUsed">0</strong>
-              <small>Text, images, captions</small>
-            </article>
-            <article class="stat-card">
-              <span>Provider cost</span>
-              <strong id="providerCost">$0.00</strong>
-              <small id="activeOverrides">0 active overrides</small>
-            </article>
+          <section id="overview" class="view-section" data-view-section="overview">
+            <section class="stats-grid" aria-label="Key stats">
+              <article class="stat-card">
+                <span>Active users</span>
+                <strong id="activeUsers">0</strong>
+                <small id="usageRecords">0 usage records</small>
+              </article>
+              <article class="stat-card">
+                <span>Videos used</span>
+                <strong id="videoClips">0</strong>
+                <small>This billing month</small>
+              </article>
+              <article class="stat-card">
+                <span>AI credits used</span>
+                <strong id="creditsUsed">0</strong>
+                <small>Text, images, captions</small>
+              </article>
+              <article class="stat-card">
+                <span>Provider cost</span>
+                <strong id="providerCost">$0.00</strong>
+                <small id="activeOverrides">0 active overrides</small>
+              </article>
+            </section>
+
+            <section class="content-grid">
+              <article class="panel chart-panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Last 14 days</p>
+                    <h2>Requests and video usage</h2>
+                  </div>
+                  <span id="periodText" class="period-chip">Period</span>
+                </div>
+                <div class="chart-frame">
+                  <canvas id="usageChart"></canvas>
+                </div>
+                <div class="chart-summary" aria-label="Chart summary">
+                  <span><strong id="chartRequests">0</strong> requests</span>
+                  <span><strong id="chartVideos">0</strong> videos</span>
+                  <span><strong id="chartCost">$0.00</strong> provider cost</span>
+                </div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Recent activity</p>
+                    <h2>Events</h2>
+                  </div>
+                </div>
+                <div id="eventsList" class="events-list"></div>
+              </article>
+            </section>
           </section>
 
-          <section class="content-grid">
-            <article class="panel chart-panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Last 14 days</p>
-                  <h2>Requests and video usage</h2>
-                </div>
-                <span id="periodText" class="period-chip">Period</span>
-              </div>
-              <div class="chart-frame">
-                <canvas id="usageChart"></canvas>
-              </div>
-              <div class="chart-summary" aria-label="Chart summary">
-                <span><strong id="chartRequests">0</strong> requests</span>
-                <span><strong id="chartVideos">0</strong> videos</span>
-                <span><strong id="chartCost">$0.00</strong> provider cost</span>
-              </div>
-            </article>
-
-            <article class="panel">
-              <div class="panel-header">
-                <div>
-                  <p class="eyebrow">Recent activity</p>
-                  <h2>Events</h2>
-                </div>
-              </div>
-              <div id="eventsList" class="events-list"></div>
-            </article>
-          </section>
-
-          <section id="users" class="panel users-panel">
+          <section id="users" class="panel users-panel view-section hidden" data-view-section="users">
             <div class="panel-header users-header">
               <div>
                 <p class="eyebrow">Quota management</p>
                 <h2>Users</h2>
               </div>
-              <input id="userSearch" type="search" placeholder="Search UID, plan, model...">
+              <input id="userSearch" type="search" placeholder="Search email, UID, plan, model...">
             </div>
             <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
-                    <th>User</th>
+                    <th>Account</th>
                     <th>Plan</th>
                     <th>Videos</th>
                     <th>Credits</th>
@@ -135,6 +137,36 @@
                 </thead>
                 <tbody id="usersTable"></tbody>
               </table>
+            </div>
+          </section>
+
+          <section id="events" class="panel events-page view-section hidden" data-view-section="events">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Usage ledger</p>
+                <h2>Events</h2>
+              </div>
+            </div>
+            <div id="eventsListFull" class="events-list events-list-large"></div>
+          </section>
+
+          <section id="access" class="panel access-panel view-section hidden" data-view-section="access">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow">Admin access</p>
+                <h2>Current session</h2>
+              </div>
+              <span id="accessStatus" class="status-pill ready">Admin</span>
+            </div>
+            <div class="access-grid">
+              <div>
+                <span>Firebase UID</span>
+                <code id="accessUID">UID pending</code>
+              </div>
+              <div>
+                <span>Admin source</span>
+                <strong>Firebase Functions authorization</strong>
+              </div>
             </div>
           </section>
         </section>
@@ -151,8 +183,22 @@
           <button id="closeDialogButton" class="icon-button" value="cancel" aria-label="Close" type="submit">x</button>
         </div>
         <div class="quota-context">
-          <code id="dialogHash">quota hash</code>
-          <span id="dialogPlan">plan</span>
+          <div>
+            <span>Email</span>
+            <strong id="dialogEmail">No email on file</strong>
+          </div>
+          <div>
+            <span>UID</span>
+            <code id="dialogUID">uid</code>
+          </div>
+          <div>
+            <span>Quota hash</span>
+            <code id="dialogHash">quota hash</code>
+          </div>
+          <div>
+            <span>Plan</span>
+            <strong id="dialogPlan">plan</strong>
+          </div>
         </div>
         <label>
           Video clip limit
