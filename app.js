@@ -123,6 +123,11 @@ const el = {
   financeEfficiency: document.getElementById("financeEfficiency"),
   financeProviderTable: document.getElementById("financeProviderTable"),
   financeModelTable: document.getElementById("financeModelTable"),
+  finLeakLabel: document.getElementById("finLeakLabel"),
+  finLeakTotal: document.getElementById("finLeakTotal"),
+  finLeakJobs: document.getElementById("finLeakJobs"),
+  finLeakReasonTable: document.getElementById("finLeakReasonTable"),
+  finLeakRecent: document.getElementById("finLeakRecent"),
   financeUsersTable: document.getElementById("financeUsersTable"),
   exportFinanceButton: document.getElementById("exportFinanceButton"),
   eventsList: document.getElementById("eventsList"),
@@ -750,7 +755,46 @@ function renderFinance() {
   renderFinanceEfficiency();
   renderFinanceProviders();
   renderFinanceModels();
+  renderUndeliveredVideo();
   renderFinanceUsers();
+}
+
+// Veo generations that were started (so Google billed us) but never reached the creator —
+// populated by the soundframeAdminDashboard `undeliveredVideo` section (functions deploy required).
+function renderUndeliveredVideo() {
+  const leak = state.dashboard?.undeliveredVideo;
+  el.finLeakLabel.textContent = `Last ${leak?.windowDays || state.dashboard?.eventWindowDays || 14} days`;
+  el.finLeakTotal.textContent = money(leak?.estimatedCostUSD || 0);
+  el.finLeakJobs.textContent = number(leak?.jobs || 0);
+
+  const reasons = leak?.byReason || [];
+  if (reasons.length === 0) {
+    const message = leak
+      ? "No undelivered video spend in this window."
+      : "No data yet — deploy the functions build that reports undeliveredVideo.";
+    el.finLeakReasonTable.innerHTML = `<tr><td colspan="3" class="empty-state">${escapeHTML(message)}</td></tr>`;
+  } else {
+    el.finLeakReasonTable.innerHTML = reasons.map((row) => `
+      <tr>
+        <td><strong>${escapeHTML(row.reason || "unknown")}</strong></td>
+        <td>${number(row.jobs)}</td>
+        <td>${money(row.estimatedCostUSD)}</td>
+      </tr>
+    `).join("");
+  }
+
+  const recent = leak?.recent || [];
+  if (recent.length === 0) {
+    el.finLeakRecent.innerHTML = `<div class="empty-state">Nothing undelivered recently.</div>`;
+    return;
+  }
+  el.finLeakRecent.innerHTML = recent.slice(0, 10).map((job) => `
+    <div class="event-row">
+      <strong>${escapeHTML(job.model || "video")} <span class="mini-chip">${escapeHTML(job.reason || "unknown")}</span></strong>
+      <span>${escapeHTML(job.uid || "unknown account")}</span>
+      <span>${money(job.estimatedCostUSD)} / ${number(job.videoSeconds)}s / ${formatDate(job.createdAt)}</span>
+    </div>
+  `).join("");
 }
 
 function renderCostTrendChart() {

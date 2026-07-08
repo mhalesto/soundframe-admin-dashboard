@@ -329,6 +329,43 @@
               </article>
             </section>
 
+            <section class="spend-grid">
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow" id="finLeakLabel">Last 14 days</p>
+                    <h2>Undelivered video spend</h2>
+                  </div>
+                </div>
+                <div class="chart-summary" aria-label="Undelivered video summary">
+                  <span><strong id="finLeakTotal">$0.00</strong> est. wasted</span>
+                  <span><strong id="finLeakJobs">0</strong> jobs</span>
+                </div>
+                <div class="table-wrap">
+                  <table class="compact-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Reason</th>
+                        <th scope="col">Jobs</th>
+                        <th scope="col">Est. cost</th>
+                      </tr>
+                    </thead>
+                    <tbody id="finLeakReasonTable"></tbody>
+                  </table>
+                </div>
+              </article>
+
+              <article class="panel">
+                <div class="panel-header">
+                  <div>
+                    <p class="eyebrow">Started, billed, never delivered</p>
+                    <h2>Recent undelivered jobs</h2>
+                  </div>
+                </div>
+                <div id="finLeakRecent" class="events-list"></div>
+              </article>
+            </section>
+
             <section class="panel">
               <div class="panel-header users-header">
                 <div>
