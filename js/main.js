@@ -29,6 +29,9 @@ const AUTO_REFRESH_MS = 45000;
 // on first load, on manual refresh, and at most every 10 minutes while a finance-heavy page is open.
 const FINANCE_REFRESH_MS = 10 * 60 * 1000;
 const FINANCE_PAGES = new Set(["finance", "providers", "operations"]);
+// App Store subscriber counts scan every tracked subscription, so they load on sign-in, on manual refresh and at most
+// every 5 minutes while the Subscribers page is open: never on the 45-second dashboard poll.
+const APP_STORE_REFRESH_MS = 5 * 60 * 1000;
 
 const pages = { overview, finance, subscribers, users, operations, events, providers, audit, access, settings };
 const mounted = new Set();
@@ -189,6 +192,28 @@ async function loadFinance() {
   }
 }
 
+function appStoreIsStale() {
+  if (state.appStoreLoading) return false;
+  if (!state.appStoreLoadedAt) return true;
+  return state.route.name === "subscribers" && Date.now() - state.appStoreLoadedAt > APP_STORE_REFRESH_MS;
+}
+
+async function loadAppStore() {
+  if (state.appStoreLoading || !state.user || state.auth !== "ready") return;
+  state.appStoreLoading = true;
+  try {
+    state.appStore = await api.appStoreSubscribers(state.user);
+    state.appStoreError = null;
+  } catch (error) {
+    state.appStoreError = describeError(error);
+    if (state.appStore) toast(`App Store subscriber counts could not be refreshed. ${state.appStoreError.message}`, "warn");
+  } finally {
+    state.appStoreLoadedAt = Date.now();
+    state.appStoreLoading = false;
+    emit("data", { source: "appStore" });
+  }
+}
+
 async function refresh({ force = false } = {}) {
   if (!state.user || state.loading) return;
   state.loading = true;
@@ -198,6 +223,7 @@ async function refresh({ force = false } = {}) {
     if (!state.status.isAdmin) {
       state.dashboard = null;
       state.finance = null;
+      state.appStore = null;
       setAuth("locked");
       return;
     }
@@ -209,6 +235,7 @@ async function refresh({ force = false } = {}) {
     renderGate();
     emit("data", { source: "dashboard" });
     if (force || financeIsStale()) loadFinance();
+    if (force || appStoreIsStale()) loadAppStore();
   } catch (error) {
     const info = describeError(error);
     state.dashboardError = info;
@@ -327,6 +354,7 @@ function boot() {
     if (paramsOnly && visiblePage === current.name) updatePage(current.name);
     else showPage(current.name, { initial });
     if (state.auth === "ready" && financeIsStale() && !state.loading) loadFinance();
+    if (state.auth === "ready" && appStoreIsStale() && !state.loading) loadAppStore();
   });
   on("data", onData);
   on("prefs", (patchPrefs) => {
@@ -353,6 +381,9 @@ function boot() {
       state.finance = null;
       state.financeError = null;
       state.financeLoadedAt = 0;
+      state.appStore = null;
+      state.appStoreError = null;
+      state.appStoreLoadedAt = 0;
       setAuth("signedout");
       onData();
       return;

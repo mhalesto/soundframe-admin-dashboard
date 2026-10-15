@@ -52,6 +52,10 @@ export const state = {
   financeError: null,
   financeLoadedAt: 0,
   financeLoading: false,
+  appStore: null, // soundframeAdminAppStoreSubscribers: subscriptions reported by App Store Server Notifications
+  appStoreError: null,
+  appStoreLoadedAt: 0,
+  appStoreLoading: false,
   loading: false,
   lastRefreshFailed: false,
   route: { name: "overview", params: new URLSearchParams() },

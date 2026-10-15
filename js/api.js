@@ -36,7 +36,8 @@ const callables = {
   updateLimits: httpsCallable(functions, "soundframeAdminUpdateUserLimits"),
   financeMonitor: httpsCallable(functions, "soundframeAdminFinanceMonitor"),
   financeSync: httpsCallable(functions, "soundframeAdminFinanceSync", { timeout: 150000 }),
-  financeSettings: httpsCallable(functions, "soundframeAdminFinanceUpdateSettings")
+  financeSettings: httpsCallable(functions, "soundframeAdminFinanceUpdateSettings"),
+  appStoreSubscribers: httpsCallable(functions, "soundframeAdminAppStoreSubscribers")
 };
 
 export function watchAuth(callback) {
@@ -67,7 +68,8 @@ export const api = {
   updateLimits: (user, payload) => call("updateLimits", user, payload, true),
   financeMonitor: (user) => call("financeMonitor", user),
   financeSync: (user) => call("financeSync", user),
-  financeSettings: (user, settings) => call("financeSettings", user, { settings })
+  financeSettings: (user, settings) => call("financeSettings", user, { settings }),
+  appStoreSubscribers: (user) => call("appStoreSubscribers", user)
 };
 
 /** Human message plus a coarse category for state rendering. */

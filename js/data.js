@@ -1,4 +1,5 @@
-// Derived, read-only views of the two admin responses (soundframeAdminDashboard + soundframeAdminFinanceMonitor).
+// Derived, read-only views of the admin responses (soundframeAdminDashboard, soundframeAdminFinanceMonitor and
+// soundframeAdminAppStoreSubscribers).
 // Nothing here fabricates data: when a source is missing, selectors return null so the UI can say so.
 import { state, prefs, isRead } from "./store.js";
 import {
@@ -176,6 +177,90 @@ async function sha256Hex(text) {
 }
 
 /** The backend hashes "transaction:<originalTransactionID>" into quotaSubjectHash (entitlements.ts). */
+// ---------- App Store subscriptions (App Store Server Notifications V2) ----------
+/**
+ * Where the App Store source stands: "live" once Apple has delivered a notification, "waiting" when the callable
+ * answers but nothing has arrived, "not-deployed" / "error" when the callable fails, "pending" before it answers.
+ */
+export function appStoreSourceState() {
+  if (state.appStore) return state.appStore.endpoint?.configured ? "live" : "waiting";
+  if (state.appStoreError) return state.appStoreError.kind === "missing" ? "not-deployed" : "error";
+  return "pending";
+}
+
+export function appStoreCounts(environment = "Production") {
+  return state.appStore?.counts?.[environment] || null;
+}
+
+export function appStoreRows() {
+  return state.appStore?.rows || [];
+}
+
+export function findAppStoreSubscription(hash) {
+  return appStoreRows().find((row) => row.subscriptionHash === hash) || null;
+}
+
+function appStoreNotifications() {
+  const source = appStoreSourceState();
+  if (source === "pending") return [];
+  if (source !== "live") {
+    const waiting = source === "waiting";
+    return [{
+      id: waiting ? "subs:notifications-waiting" : "subs:coverage-gap",
+      severity: "info",
+      category: "subscribers",
+      kind: "coverage",
+      title: waiting ? "No App Store notifications received yet" : "Some App Store subscribers are invisible here",
+      detail: waiting
+        ? "The notification endpoint is deployed, but Apple has not sent anything yet. Register its URL in App Store Connect, then confirm with a TestFlight (sandbox) purchase."
+        : "The backend only sees subscribers who used AI this month. A paid subscription with no AI activity will not appear until App Store notifications are connected.",
+      route: "#subscribers"
+    }];
+  }
+  const report = state.appStore;
+  const production = report.counts.Production;
+  const missed = APP_STORE_ENVIRONMENTS.reduce((sum, environment) => sum + (report.counts[environment]?.unconfirmed || 0), 0);
+  const list = [];
+  if (production.billingRetry + production.grace > 0) {
+    list.push({
+      id: stableID("subs", "billing", production.billingRetry, production.grace),
+      severity: "warning",
+      category: "subscribers",
+      kind: "billing",
+      title: `${plural(production.billingRetry + production.grace, "subscription")} with a failed renewal`,
+      detail: `${number(production.grace)} in the grace period (still have access) and ${number(production.billingRetry)} in billing retry (no access). Apple keeps retrying the payment.`,
+      route: "#subscribers?apple=attention"
+    });
+  }
+  if (missed > 0) {
+    list.push({
+      id: stableID("subs", "missed-notice", missed),
+      severity: "warning",
+      category: "subscribers",
+      kind: "sync",
+      title: `${plural(missed, "subscription")} missed a renewal notice`,
+      detail: "Their expiry passed without a renewal or expiry notification from Apple, so their state is unconfirmed. Check the endpoint's logs and the notification history in App Store Connect.",
+      route: "#subscribers?apple=attention"
+    });
+  }
+  const rejectedAt = Date.parse(report.endpoint.lastRejectedAt || "");
+  if (Number.isFinite(rejectedAt) && Date.now() - rejectedAt < 7 * DAY_MS) {
+    list.push({
+      id: stableID("subs", "rejected", report.endpoint.rejectedCount),
+      severity: "warning",
+      category: "subscribers",
+      kind: "sync",
+      title: "App Store notifications were rejected",
+      detail: `${plural(report.endpoint.rejectedCount, "request")} rejected since tracking began (last reason: ${report.endpoint.lastRejectedReason || "unknown"}). Rejected requests failed Apple's signature or bundle checks and were not stored.`,
+      route: "#subscribers",
+      at: report.endpoint.lastRejectedAt
+    });
+  }
+  return list;
+}
+
+export const APP_STORE_ENVIRONMENTS = ["Production", "Sandbox", "Unknown"];
+
 export function hashAppStoreTransaction(originalTransactionID) {
   return sha256Hex(`transaction:${String(originalTransactionID).trim()}`);
 }
@@ -420,15 +505,7 @@ export function buildNotifications() {
         at: entry.at
       });
     });
-    list.push({
-      id: "subs:coverage-gap",
-      severity: "info",
-      category: "subscribers",
-      kind: "coverage",
-      title: "Some App Store subscribers are invisible here",
-      detail: "The backend only sees subscribers who used AI this month. A paid subscription with no AI activity will not appear until App Store data is connected.",
-      route: "#subscribers"
-    });
+    list.push(...appStoreNotifications());
   }
   if (state.lastRefreshFailed && state.dashboardError) {
     list.push({
@@ -472,6 +549,7 @@ export function navBadges(notifications = buildNotifications()) {
     if (item.category === "providers") add("providers", item.severity);
     else if (item.category === "finance") add("finance", item.severity);
     else if (item.category === "operations") add("operations", item.severity);
+    else if (item.category === "subscribers") add("subscribers", item.severity);
   });
   const over = usersAtRisk().filter((entry) => entry.risk === "over").length;
   if (over > 0) badges.users = { count: over, tone: "warn" };
