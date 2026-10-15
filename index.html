@@ -230,6 +230,218 @@
           </section>
 
           <section id="finance" class="view-section hidden" data-view-section="finance">
+            <section id="providerMonitor" class="provider-monitor" aria-label="AI provider monitoring">
+              <div class="monitor-header">
+                <div>
+                  <p class="eyebrow">AI provider monitoring</p>
+                  <h2 class="monitor-title">Balances, spend and runway</h2>
+                  <p id="pmSyncLine" class="monitor-sub">Loading provider data…</p>
+                </div>
+                <div class="header-tools">
+                  <button id="pmSettingsButton" class="ghost" type="button" disabled>Settings</button>
+                  <button id="pmSyncButton" class="primary" type="button" disabled>Sync balances</button>
+                </div>
+              </div>
+
+              <div id="pmUnavailable" class="panel pm-unavailable hidden"></div>
+
+              <div id="pmContent" class="hidden">
+                <div id="pmAlerts" class="alert-list" aria-live="polite"></div>
+
+                <section class="pm-overview" aria-label="Financial overview">
+                  <article class="insight-tile" id="pmTileVerified">
+                    <span>Verified balances</span>
+                    <strong id="pmVerifiedBalance">—</strong>
+                    <small id="pmVerifiedDetail">From provider billing APIs</small>
+                  </article>
+                  <article class="insight-tile" id="pmTileEstimated">
+                    <span>Estimated balances</span>
+                    <strong id="pmEstimatedBalance">—</strong>
+                    <small id="pmEstimatedDetail">Manual balance minus tracked spend</small>
+                  </article>
+                  <article class="insight-tile">
+                    <span>Today's generation cost</span>
+                    <strong id="pmToday">$0.00</strong>
+                    <small id="pmTodayDetail">UTC day, estimated</small>
+                  </article>
+                  <article class="insight-tile">
+                    <span>This month</span>
+                    <strong id="pmMonth">$0.00</strong>
+                    <small id="pmMonthDetail">Estimated</small>
+                  </article>
+                  <article class="insight-tile">
+                    <span>Billed this month</span>
+                    <strong id="pmBilled">—</strong>
+                    <small id="pmBilledDetail">Verified by providers</small>
+                  </article>
+                  <article class="insight-tile">
+                    <span>Subscription revenue</span>
+                    <strong id="pmRevenue">—</strong>
+                    <small id="pmRevenueDetail">Net of Apple commission</small>
+                  </article>
+                  <article class="insight-tile" id="pmTileMargin">
+                    <span>Estimated gross margin</span>
+                    <strong id="pmMargin">—</strong>
+                    <small id="pmMarginDetail">Revenue − projected AI cost</small>
+                  </article>
+                  <article class="insight-tile" id="pmTileAttention">
+                    <span>Providers needing attention</span>
+                    <strong id="pmAttention">0</strong>
+                    <small id="pmAttentionDetail">Shortest runway —</small>
+                  </article>
+                </section>
+
+                <section id="pmProviders" class="provider-grid" aria-label="Provider balance cards"></section>
+
+                <section class="content-grid">
+                  <article class="panel chart-panel">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow" id="pmSpendLabel">Last 90 days · estimated</p>
+                        <h2>Spending by provider</h2>
+                      </div>
+                      <div class="segmented" role="group" aria-label="Spending granularity">
+                        <button type="button" data-granularity="daily" aria-pressed="true">Daily</button>
+                        <button type="button" data-granularity="weekly" aria-pressed="false">Weekly</button>
+                        <button type="button" data-granularity="monthly" aria-pressed="false">Monthly</button>
+                      </div>
+                    </div>
+                    <div class="chart-frame">
+                      <canvas id="pmSpendChart" role="img" aria-label="AI generation spending by provider over time"></canvas>
+                    </div>
+                    <div class="chart-summary" aria-label="Spending summary">
+                      <span><strong id="pmSpendTotal">$0.00</strong> total</span>
+                      <span><strong id="pmSpendPeak">$0.00</strong> peak</span>
+                      <span><strong id="pmSpendGenerations">0</strong> generations</span>
+                    </div>
+                  </article>
+
+                  <article class="panel">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow">This month · estimated</p>
+                        <h2>Spend by provider</h2>
+                      </div>
+                    </div>
+                    <div class="donut-frame">
+                      <canvas id="pmProviderMixChart" role="img" aria-label="This month's spend split by provider"></canvas>
+                    </div>
+                    <div id="pmProviderMixLegend" class="chart-legend"></div>
+                  </article>
+                </section>
+
+                <section class="content-grid">
+                  <article class="panel chart-panel">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow">Last 6 months</p>
+                        <h2>Revenue vs AI generation cost</h2>
+                      </div>
+                      <span class="period-chip">USD</span>
+                    </div>
+                    <div class="chart-frame">
+                      <canvas id="pmRevenueChart" role="img" aria-label="Monthly subscription revenue compared with AI generation cost"></canvas>
+                    </div>
+                    <p id="pmRevenueNote" class="reference-note"></p>
+                  </article>
+
+                  <article class="panel">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow">Last 30 days</p>
+                        <h2>Most expensive models</h2>
+                      </div>
+                    </div>
+                    <div id="pmTopModels" class="bar-list"></div>
+                  </article>
+                </section>
+
+                <section class="panel pm-section">
+                  <div class="panel-header users-header">
+                    <div>
+                      <p class="eyebrow">Every configured model · last 30 days</p>
+                      <h2>Model monitoring</h2>
+                    </div>
+                    <div class="filter-bar">
+                      <select id="pmModelProvider" aria-label="Filter models by provider">
+                        <option value="">All providers</option>
+                        <option value="byteplus">BytePlus ModelArk</option>
+                        <option value="google">Google Gemini API</option>
+                        <option value="openai">OpenAI</option>
+                        <option value="other">Other</option>
+                      </select>
+                      <label class="check-row compact-check">
+                        <input id="pmModelUsedOnly" type="checkbox">
+                        Used only
+                      </label>
+                    </div>
+                  </div>
+                  <div class="table-wrap">
+                    <table class="compact-table model-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Model</th>
+                          <th scope="col">List price</th>
+                          <th scope="col">Generations</th>
+                          <th scope="col">Spend</th>
+                          <th scope="col">Avg / gen</th>
+                          <th scope="col">Success</th>
+                          <th scope="col">Capacity left</th>
+                          <th scope="col">This month</th>
+                        </tr>
+                      </thead>
+                      <tbody id="pmModelTable"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section class="panel pm-section">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow">This month · estimated</p>
+                        <h2>Profitability by plan</h2>
+                      </div>
+                    </div>
+                    <div class="table-wrap">
+                      <table class="compact-table plan-table">
+                        <thead>
+                          <tr>
+                            <th scope="col">Plan</th>
+                            <th scope="col">Net / mo</th>
+                            <th scope="col">Paying</th>
+                            <th scope="col">Revenue</th>
+                            <th scope="col">AI cost</th>
+                            <th scope="col">Margin</th>
+                            <th scope="col">Full-allowance cost</th>
+                          </tr>
+                        </thead>
+                        <tbody id="pmPlanTable"></tbody>
+                      </table>
+                    </div>
+                    <p id="pmPlanNote" class="reference-note"></p>
+                </section>
+
+                <section class="panel pm-section">
+                    <div class="panel-header">
+                      <div>
+                        <p class="eyebrow">Safeguards</p>
+                        <h2>Recommendations</h2>
+                      </div>
+                    </div>
+                    <div id="pmRecommendations" class="recommendation-grid"></div>
+                    <details class="pm-notes">
+                      <summary>How these numbers are calculated</summary>
+                      <ul id="pmNotes"></ul>
+                    </details>
+                </section>
+              </div>
+            </section>
+
+            <div class="section-heading">
+              <p class="eyebrow">Generation events</p>
+              <h2>Tracked spend detail</h2>
+            </div>
+
             <section class="finance-kpis" aria-label="Spend summary">
               <article class="stat-card">
                 <span>Spend this period</span>
@@ -585,6 +797,93 @@
           <button id="userDialogCloseButton" class="primary" type="button">Close</button>
         </div>
       </div>
+    </dialog>
+
+    <dialog id="financeSettingsDialog" class="wide-dialog">
+      <form method="dialog" class="dialog-card">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">AI provider monitoring</p>
+            <h2>Finance settings</h2>
+          </div>
+          <button class="icon-button" value="cancel" aria-label="Close" type="submit">x</button>
+        </div>
+
+        <fieldset class="settings-group">
+          <legend>Low-balance alerts (USD)</legend>
+          <p class="settings-help">Default thresholds apply to every provider. Leave a provider blank to use the default; set both to 0 to silence a postpaid account.</p>
+          <div class="settings-grid three">
+            <span class="settings-row-label">Default</span>
+            <label>Warning below<input id="fsWarning" type="number" min="0" step="0.01" required></label>
+            <label>Critical below<input id="fsCritical" type="number" min="0" step="0.01" required></label>
+            <span class="settings-row-label">BytePlus ModelArk</span>
+            <label>Warning<input data-threshold="byteplus" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            <label>Critical<input data-threshold="byteplus" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            <span class="settings-row-label">Google Gemini API</span>
+            <label>Warning<input data-threshold="google" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            <label>Critical<input data-threshold="google" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            <span class="settings-row-label">OpenAI</span>
+            <label>Warning<input data-threshold="openai" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            <label>Critical<input data-threshold="openai" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="settings-group">
+          <legend>Runway and spending alerts</legend>
+          <div class="settings-grid two">
+            <label>Warn when funds last fewer than (days)<input id="fsRunwayWarning" type="number" min="1" max="365" step="1" required></label>
+            <label>Critical when fewer than (days)<input id="fsRunwayCritical" type="number" min="0" max="365" step="1" required></label>
+            <label>Spike: day's spend ≥ × 7-day average<input id="fsSpikeMultiplier" type="number" min="1.1" max="50" step="0.1" required></label>
+            <label>Spike: ignore days under (USD)<input id="fsSpikeMinimum" type="number" min="0" step="0.5" required></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="settings-group">
+          <legend>Manual balances</legend>
+          <p class="settings-help">For providers without a balance API. Copy the balance from the provider console; the dashboard subtracts tracked spend since that date and labels the result as an estimate.</p>
+          <div class="settings-grid manual">
+            <span class="settings-row-label">BytePlus ModelArk</span>
+            <label>Balance (USD)<input data-manual="byteplus" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+            <label>As of<input data-manual="byteplus" data-field="asOf" type="date"></label>
+            <span class="settings-row-label">Google Gemini API</span>
+            <label>Balance (USD)<input data-manual="google" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+            <label>As of<input data-manual="google" data-field="asOf" type="date"></label>
+            <span class="settings-row-label">OpenAI</span>
+            <label>Balance (USD)<input data-manual="openai" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+            <label>As of<input data-manual="openai" data-field="asOf" type="date"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="settings-group">
+          <legend>Revenue</legend>
+          <p class="settings-help">Prices default to SoundFrameProducts.storekit. Paste App Store Connect net proceeds to replace the estimate for a month.</p>
+          <div class="settings-grid two">
+            <label>Apple commission (%)<input id="fsCommission" type="number" min="0" max="50" step="1" required></label>
+            <span></span>
+            <label>Go monthly price<input data-price="com.currenttech.soundframe.go.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+            <label>Pro monthly price<input data-price="com.currenttech.soundframe.pro.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+            <label>Pro 3-month price<input data-price="com.currenttech.soundframe.pro.threemonth" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+            <label>Legacy annual price<input data-price="com.currenttech.soundframe.pro.annual" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+            <label><span id="fsRevenueCurrentLabel">Net proceeds this month</span><input id="fsRevenueCurrent" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
+            <label><span id="fsRevenuePreviousLabel">Net proceeds last month</span><input id="fsRevenuePrevious" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
+          </div>
+        </fieldset>
+
+        <fieldset class="settings-group">
+          <legend>Billing data sources</legend>
+          <div class="settings-grid two">
+            <label>Google billing export table<input id="fsGoogleTable" type="text" placeholder="soundframe-1b8d4.billing.gcp_billing_export_v1_XXXXXX" autocomplete="off" spellcheck="false"></label>
+            <label>BytePlus billing region<input id="fsBytePlusRegion" type="text" placeholder="ap-singapore-1" autocomplete="off" spellcheck="false"></label>
+          </div>
+          <p class="settings-help">Billing API keys are never entered here. They live in Firebase Secret Manager: BYTEPLUS_BILLING_ACCESS_KEY_ID, BYTEPLUS_BILLING_SECRET_ACCESS_KEY and OPENAI_ADMIN_API_KEY.</p>
+        </fieldset>
+
+        <div id="fsError" class="dialog-error hidden"></div>
+        <div class="dialog-actions">
+          <button class="ghost" value="cancel" type="submit">Cancel</button>
+          <button id="fsSaveButton" class="primary" type="button">Save settings</button>
+        </div>
+      </form>
     </dialog>
 
     <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>

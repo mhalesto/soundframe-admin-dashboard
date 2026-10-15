@@ -32,6 +32,16 @@ const googleProvider = new GoogleAuthProvider();
 const statusCallable = httpsCallable(functions, "soundframeAdminStatus");
 const dashboardCallable = httpsCallable(functions, "soundframeAdminDashboard");
 const updateLimitsCallable = httpsCallable(functions, "soundframeAdminUpdateUserLimits");
+const financeMonitorCallable = httpsCallable(functions, "soundframeAdminFinanceMonitor");
+const financeSyncCallable = httpsCallable(functions, "soundframeAdminFinanceSync", { timeout: 150000 });
+const financeSettingsCallable = httpsCallable(functions, "soundframeAdminFinanceUpdateSettings");
+
+// The provider monitor reads months of generation events, so it refreshes far less often than the
+// 45-second dashboard poll: on first load, on manual Refresh, and when Finance is open and stale.
+const FINANCE_REFRESH_MS = 10 * 60 * 1000;
+const PROVIDER_IDS = ["byteplus", "google", "openai", "other"];
+const PROVIDER_COLORS = { byteplus: "#8f7bff", google: "#37d4df", openai: "#43d18b", other: "#d9a24a" };
+const PROVIDER_SHORT_NAMES = { byteplus: "BytePlus", google: "Google", openai: "OpenAI", other: "Other" };
 
 const state = {
   user: null,
@@ -50,7 +60,17 @@ const state = {
   featureChart: null,
   costChart: null,
   loading: false,
-  toastTimer: null
+  toastTimer: null,
+  finance: null,
+  financeError: "",
+  financeLoadedAt: 0,
+  financeLoading: false,
+  spendGranularity: "daily",
+  pmModelProvider: "",
+  pmModelUsedOnly: false,
+  pmSpendChart: null,
+  pmRevenueChart: null,
+  pmMixChart: null
 };
 
 const CHART_PALETTE = ["#37d4df", "#d9a24a", "#8f7bff", "#43d18b", "#ff647c", "#5ce6cf", "#ffc46b", "#6ea8ff"];
@@ -169,13 +189,96 @@ const el = {
   toast: document.getElementById("toast")
 };
 
+const pm = {
+  syncLine: document.getElementById("pmSyncLine"),
+  settingsButton: document.getElementById("pmSettingsButton"),
+  syncButton: document.getElementById("pmSyncButton"),
+  unavailable: document.getElementById("pmUnavailable"),
+  content: document.getElementById("pmContent"),
+  alerts: document.getElementById("pmAlerts"),
+  tileVerified: document.getElementById("pmTileVerified"),
+  verifiedBalance: document.getElementById("pmVerifiedBalance"),
+  verifiedDetail: document.getElementById("pmVerifiedDetail"),
+  tileEstimated: document.getElementById("pmTileEstimated"),
+  estimatedBalance: document.getElementById("pmEstimatedBalance"),
+  estimatedDetail: document.getElementById("pmEstimatedDetail"),
+  today: document.getElementById("pmToday"),
+  todayDetail: document.getElementById("pmTodayDetail"),
+  month: document.getElementById("pmMonth"),
+  monthDetail: document.getElementById("pmMonthDetail"),
+  billed: document.getElementById("pmBilled"),
+  billedDetail: document.getElementById("pmBilledDetail"),
+  revenue: document.getElementById("pmRevenue"),
+  revenueDetail: document.getElementById("pmRevenueDetail"),
+  tileMargin: document.getElementById("pmTileMargin"),
+  margin: document.getElementById("pmMargin"),
+  marginDetail: document.getElementById("pmMarginDetail"),
+  tileAttention: document.getElementById("pmTileAttention"),
+  attention: document.getElementById("pmAttention"),
+  attentionDetail: document.getElementById("pmAttentionDetail"),
+  providers: document.getElementById("pmProviders"),
+  spendLabel: document.getElementById("pmSpendLabel"),
+  granularityButtons: Array.from(document.querySelectorAll("[data-granularity]")),
+  spendChart: document.getElementById("pmSpendChart"),
+  spendTotal: document.getElementById("pmSpendTotal"),
+  spendPeak: document.getElementById("pmSpendPeak"),
+  spendGenerations: document.getElementById("pmSpendGenerations"),
+  mixChart: document.getElementById("pmProviderMixChart"),
+  mixLegend: document.getElementById("pmProviderMixLegend"),
+  revenueChart: document.getElementById("pmRevenueChart"),
+  revenueNote: document.getElementById("pmRevenueNote"),
+  topModels: document.getElementById("pmTopModels"),
+  modelProvider: document.getElementById("pmModelProvider"),
+  modelUsedOnly: document.getElementById("pmModelUsedOnly"),
+  modelTable: document.getElementById("pmModelTable"),
+  planTable: document.getElementById("pmPlanTable"),
+  planNote: document.getElementById("pmPlanNote"),
+  recommendations: document.getElementById("pmRecommendations"),
+  notes: document.getElementById("pmNotes"),
+  dialog: document.getElementById("financeSettingsDialog"),
+  warning: document.getElementById("fsWarning"),
+  critical: document.getElementById("fsCritical"),
+  runwayWarning: document.getElementById("fsRunwayWarning"),
+  runwayCritical: document.getElementById("fsRunwayCritical"),
+  spikeMultiplier: document.getElementById("fsSpikeMultiplier"),
+  spikeMinimum: document.getElementById("fsSpikeMinimum"),
+  commission: document.getElementById("fsCommission"),
+  revenueCurrent: document.getElementById("fsRevenueCurrent"),
+  revenuePrevious: document.getElementById("fsRevenuePrevious"),
+  revenueCurrentLabel: document.getElementById("fsRevenueCurrentLabel"),
+  revenuePreviousLabel: document.getElementById("fsRevenuePreviousLabel"),
+  googleTable: document.getElementById("fsGoogleTable"),
+  bytePlusRegion: document.getElementById("fsBytePlusRegion"),
+  error: document.getElementById("fsError"),
+  saveButton: document.getElementById("fsSaveButton")
+};
+
+pm.syncButton.addEventListener("click", syncFinance);
+pm.settingsButton.addEventListener("click", openFinanceSettings);
+pm.saveButton.addEventListener("click", saveFinanceSettings);
+pm.granularityButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    state.spendGranularity = button.dataset.granularity || "daily";
+    pm.granularityButtons.forEach((candidate) => candidate.setAttribute("aria-pressed", String(candidate === button)));
+    renderSpendChart();
+  });
+});
+pm.modelProvider.addEventListener("change", (event) => {
+  state.pmModelProvider = event.target.value;
+  renderModelTable();
+});
+pm.modelUsedOnly.addEventListener("change", (event) => {
+  state.pmModelUsedOnly = event.target.checked;
+  renderModelTable();
+});
+
 el.navLinks.forEach((link) => {
   link.addEventListener("click", (event) => {
     event.preventDefault();
     setActiveView(link.dataset.viewLink || "overview", true);
   });
 });
-el.refreshButton.addEventListener("click", () => refresh());
+el.refreshButton.addEventListener("click", () => refresh({ force: true }));
 el.autoRefreshButton.addEventListener("click", toggleAutoRefresh);
 el.copyUidButton.addEventListener("click", copyUID);
 el.signOutButton.addEventListener("click", () => signOut(auth));
@@ -250,6 +353,10 @@ onAuthStateChanged(auth, async (user) => {
   if (!user) {
     state.status = null;
     state.dashboard = null;
+    state.finance = null;
+    state.financeError = "";
+    state.financeLoadedAt = 0;
+    renderFinanceMonitor();
     showSignIn();
     return;
   }
@@ -284,7 +391,7 @@ async function continueAnonymously() {
   }
 }
 
-async function refresh() {
+async function refresh(options = {}) {
   if (!state.user || state.loading) {
     return;
   }
@@ -304,6 +411,9 @@ async function refresh() {
     const dashboardResult = await dashboardCallable({ authIDToken: token });
     state.dashboard = dashboardResult.data;
     renderDashboard();
+    if (options.force || financeIsStale()) {
+      await loadFinance(token);
+    }
   } catch (error) {
     showError(errorMessage(error));
   } finally {
@@ -321,7 +431,7 @@ function maybeAutoRefresh() {
   if (!state.user || !state.status?.isAdmin) {
     return;
   }
-  if (el.limitDialog.open || el.userDialog.open) {
+  if (el.limitDialog.open || el.userDialog.open || pm.dialog.open) {
     return;
   }
   refresh();
@@ -424,7 +534,15 @@ function setActiveView(view, updateHash) {
     });
   }
   if (nextView === "finance") {
-    requestAnimationFrame(() => state.costChart?.resize());
+    requestAnimationFrame(() => {
+      state.costChart?.resize();
+      state.pmSpendChart?.resize();
+      state.pmRevenueChart?.resize();
+      state.pmMixChart?.resize();
+    });
+    if (state.status?.isAdmin && !state.loading && financeIsStale()) {
+      loadFinance();
+    }
   }
 }
 
@@ -598,7 +716,7 @@ function renderDoughnut(existing, canvas, legendEl, entries, formatValue) {
     legendEl.innerHTML = `<div class="empty-state">No data in this window yet.</div>`;
     return null;
   }
-  const colors = filtered.map((_, index) => CHART_PALETTE[index % CHART_PALETTE.length]);
+  const colors = filtered.map((entry, index) => entry.color || CHART_PALETTE[index % CHART_PALETTE.length]);
   const total = filtered.reduce((sum, entry) => sum + entry.value, 0) || 1;
   const chart = new Chart(canvas, {
     type: "doughnut",
@@ -976,6 +1094,673 @@ function exportFinanceCSV() {
   downloadCSV(`soundframe-cost-${state.dashboard.periodKey || "current"}.csv`, header, lines);
 }
 
+// --- AI provider monitoring (soundframeAdminFinance* callables) ---
+
+function financeIsStale() {
+  if (state.financeLoading) {
+    return false;
+  }
+  if (!state.financeLoadedAt) {
+    return true;
+  }
+  return state.activeView === "finance" && Date.now() - state.financeLoadedAt > FINANCE_REFRESH_MS;
+}
+
+async function loadFinance(token) {
+  if (state.financeLoading || !state.user) {
+    return;
+  }
+  state.financeLoading = true;
+  try {
+    const idToken = token || await state.user.getIdToken();
+    const result = await financeMonitorCallable({ authIDToken: idToken });
+    state.finance = result.data;
+    state.financeError = "";
+  } catch (error) {
+    state.financeError = errorMessage(error);
+  } finally {
+    state.financeLoadedAt = Date.now();
+    state.financeLoading = false;
+    renderFinanceMonitor();
+  }
+}
+
+async function syncFinance() {
+  if (!state.user || !state.finance) {
+    return;
+  }
+  pm.syncButton.disabled = true;
+  pm.syncButton.textContent = "Syncing…";
+  try {
+    const token = await state.user.getIdToken();
+    const result = await financeSyncCallable({ authIDToken: token });
+    state.finance = result.data;
+    state.financeError = "";
+    state.financeLoadedAt = Date.now();
+    renderFinanceMonitor();
+    const summary = state.finance.providers
+      .map((card) => `${PROVIDER_SHORT_NAMES[card.id]}: balance ${credentialLabel(card.sync.balanceStatus).toLowerCase()}, spend ${credentialLabel(card.sync.spendStatus).toLowerCase()}`)
+      .join(" · ");
+    showToast(summary, "ready");
+  } catch (error) {
+    showToast(`Billing sync failed. ${errorMessage(error)}`, "warn");
+  } finally {
+    pm.syncButton.textContent = "Sync balances";
+    pm.syncButton.disabled = !state.finance;
+  }
+}
+
+function renderFinanceMonitor() {
+  const data = state.finance;
+  pm.settingsButton.disabled = !data;
+  pm.syncButton.disabled = !data;
+  if (!data) {
+    pm.content.classList.add("hidden");
+    pm.unavailable.classList.remove("hidden");
+    if (state.financeError) {
+      pm.syncLine.textContent = "Provider monitoring unavailable";
+      pm.unavailable.innerHTML = `
+        <p><strong>Provider monitoring is not available yet.</strong></p>
+        <p>Deploy the functions build that adds <code>soundframeAdminFinanceMonitor</code>, then press Refresh.</p>
+        <p class="identity-meta">${escapeHTML(state.financeError)}</p>
+      `;
+    } else {
+      pm.syncLine.textContent = "Loading provider data…";
+      pm.unavailable.innerHTML = `<div class="empty-state">Loading provider balances and spend…</div>`;
+    }
+    return;
+  }
+  pm.unavailable.classList.add("hidden");
+  pm.content.classList.remove("hidden");
+  renderMonitorSyncLine();
+  renderMonitorAlerts();
+  renderMonitorOverview();
+  renderProviderCards();
+  renderSpendChart();
+  renderProviderMix();
+  renderRevenueChart();
+  renderTopModels();
+  renderModelTable();
+  renderPlanTable();
+  renderRecommendations();
+}
+
+function renderMonitorSyncLine() {
+  const data = state.finance;
+  const attempts = data.providers.map((card) => Date.parse(card.sync.lastAttemptAt)).filter(Number.isFinite);
+  const generated = Date.parse(data.generatedAt);
+  const parts = [
+    attempts.length > 0 ? `Billing synced ${timeAgo(Math.max(...attempts))}` : "Billing never synced — press Sync balances",
+    "auto-sync every 6 hours",
+    Number.isFinite(generated) ? `figures ${timeAgo(generated)}` : ""
+  ];
+  if (state.financeError) {
+    parts.push("last refresh failed");
+  }
+  pm.syncLine.textContent = parts.filter(Boolean).join(" · ");
+}
+
+function alertRowMarkup(alert) {
+  const tone = alert.severity === "critical" ? "danger" : alert.severity === "warning" ? "warn" : "";
+  const label = alert.severity === "critical" ? "Critical" : alert.severity === "warning" ? "Warning" : "Note";
+  return `
+    <div class="alert-row ${escapeHTML(alert.severity)}">
+      <span class="mini-chip ${tone}">${label}</span>
+      <span>${escapeHTML(alert.message)}</span>
+    </div>
+  `;
+}
+
+function renderMonitorAlerts() {
+  const alerts = state.finance.alerts || [];
+  const actionable = alerts.filter((alert) => alert.severity !== "info");
+  const notes = alerts.filter((alert) => alert.severity === "info");
+  const healthy = actionable.length === 0
+    ? `<div class="alert-row ok"><span class="mini-chip ready">OK</span><span>No balance, runway or spending alerts right now.</span></div>`
+    : "";
+  const noteBlock = notes.length > 0
+    ? `<details class="alert-notes"><summary>${number(notes.length)} ${notes.length === 1 ? "note" : "notes"} about balances and tracking</summary>${notes.map(alertRowMarkup).join("")}</details>`
+    : "";
+  pm.alerts.innerHTML = actionable.map(alertRowMarkup).join("") + healthy + noteBlock;
+}
+
+function providerNames(ids) {
+  return ids.map((id) => PROVIDER_SHORT_NAMES[id] || id).join(", ");
+}
+
+function renderMonitorOverview() {
+  const data = state.finance;
+  const overview = data.overview;
+  const spend = overview.estimatedSpend;
+  const noBalanceAPI = data.providers.filter((card) => !card.capabilities.balance.supported).map((card) => card.id);
+
+  pm.verifiedBalance.textContent = overview.verifiedBalanceUSD === null ? "—" : money2(overview.verifiedBalanceUSD);
+  pm.verifiedDetail.textContent = overview.verifiedBalanceProviders.length > 0
+    ? `${providerNames(overview.verifiedBalanceProviders)} verified by API`
+    : "No balance verified yet";
+  const estimated = data.providers.filter((card) => card.balance.kind === "manual_estimate");
+  pm.estimatedBalance.textContent = overview.estimatedBalanceUSD === null ? "Not recorded" : money2(overview.estimatedBalanceUSD);
+  pm.estimatedDetail.textContent = estimated.length > 0
+    ? `${providerNames(estimated.map((card) => card.id))}: manual balance − tracked spend`
+    : `${providerNames(noBalanceAPI)} have no balance API — add one in Settings`;
+
+  pm.today.textContent = money2(spend.todayUSD);
+  pm.todayDetail.textContent = `Yesterday ${money2(spend.yesterdayUSD)} · 7-day avg ${money2(spend.dailyAverage7USD)}/day`;
+  pm.month.textContent = money2(spend.monthToDateUSD);
+  pm.monthDetail.textContent = `Projected ${money2(overview.projectedMonthCostUSD)} by month end`;
+  pm.billed.textContent = overview.verifiedSpendMonthToDateUSD === null ? "Not connected" : money2(overview.verifiedSpendMonthToDateUSD);
+  pm.billedDetail.textContent = overview.verifiedSpendProviders.length > 0
+    ? `Verified: ${providerNames(overview.verifiedSpendProviders)}`
+    : "Add billing credentials to verify";
+
+  const revenue = overview.revenue;
+  pm.revenue.textContent = revenue.monthUSD === null ? "—" : money2(revenue.monthUSD);
+  pm.revenueDetail.textContent = revenue.basis === "manual"
+    ? "Net proceeds entered from App Store Connect"
+    : revenue.basis === "estimated"
+      ? `Estimated · ${number(revenue.payingSubscribers)} paying${revenue.testSubscribers ? `, ${number(revenue.testSubscribers)} test excluded` : ""}`
+      : "No paying subscribers seen this month";
+
+  pm.margin.textContent = overview.grossMarginUSD === null ? "—" : money2(overview.grossMarginUSD);
+  pm.marginDetail.textContent = overview.grossMarginPercent === null
+    ? "Needs revenue and cost data"
+    : `${overview.grossMarginPercent}% of revenue after projected AI cost`;
+  pm.tileMargin.classList.toggle("tile-danger", overview.grossMarginUSD !== null && overview.grossMarginUSD < 0);
+  pm.tileMargin.classList.toggle("tile-warn", overview.grossMarginPercent !== null && overview.grossMarginPercent >= 0 && overview.grossMarginPercent < 30);
+
+  const critical = data.providers.some((card) => card.status === "critical");
+  pm.attention.textContent = number(overview.providersRequiringAttention);
+  pm.attentionDetail.textContent = overview.shortestRunwayDays === null
+    ? "No runway yet — needs a balance"
+    : `Shortest runway ${overview.shortestRunwayDays} days`;
+  pm.tileAttention.classList.toggle("tile-danger", critical);
+  pm.tileAttention.classList.toggle("tile-warn", !critical && overview.providersRequiringAttention > 0);
+  pm.tileVerified.classList.toggle("tile-danger", data.providers.some((card) => card.balance.kind === "verified" && card.status === "critical"));
+}
+
+function credentialLabel(status) {
+  return {
+    verified: "Verified",
+    unavailable: "No API",
+    not_configured: "Not configured",
+    permission_denied: "Permission denied",
+    error: "Error",
+    never: "Never synced"
+  }[status] || status || "Unknown";
+}
+
+function providerCardMarkup(card) {
+  const balance = card.balance;
+  const kindLabel = {
+    verified: "Verified balance",
+    stale: "Last verified balance",
+    manual_estimate: "Estimated balance",
+    unavailable: "Balance unavailable"
+  }[balance.kind] || "Balance";
+  const statusChip = {
+    ok: ["ready", "Healthy"],
+    warning: ["warn", "Warning"],
+    critical: ["danger", "Critical"],
+    unavailable: ["", "Unavailable"]
+  }[card.status] || ["", card.status];
+  const asOf = balance.asOf
+    ? `${balance.kind === "manual_estimate" ? "Recorded" : "As of"} ${formatDate(balance.asOf)}`
+    : card.capabilities.balance.supported ? "Not synced yet" : "No balance API";
+  const currency = balance.availableUSD === null ? "" : `${escapeHTML(balance.currency)}${balance.currencyReported ? "" : " (assumed)"} · `;
+  const balanceDetail = balance.kind === "manual_estimate" && balance.manual
+    ? `${money2(balance.manual.amountUSD)} recorded − ${money2(balance.manual.spentSinceUSD)} tracked since`
+    : balance.kind === "verified" || balance.kind === "stale"
+      ? `Cash ${balance.cashUSD === null ? "—" : money2(balance.cashUSD)} · Credit ${balance.creditUSD === null ? "—" : money2(balance.creditUSD)}`
+      : escapeHTML(card.capabilities.balance.note);
+  const estimated = card.estimatedSpend;
+  const verified = card.verifiedSpend;
+  const runway = card.runway;
+  const capacity = card.capacity;
+  const metric = (label, value, detail) => `
+    <div class="provider-metric">
+      <span>${label}</span>
+      <strong>${value}</strong>
+      <small>${detail}</small>
+    </div>
+  `;
+  const messages = (card.sync.messages || []).map((message) => `<li>${escapeHTML(message)}</li>`).join("");
+  const capability = (label, entry) => `
+    <div class="capability">
+      <strong>${label}: ${entry.supported ? "supported" : "not available"}</strong>
+      <span>${escapeHTML(entry.method)}</span>
+      ${entry.credentials.length ? `<span>Credentials: <code>${entry.credentials.map(escapeHTML).join("</code>, <code>")}</code></span>` : ""}
+      ${entry.permissions ? `<span>${escapeHTML(entry.permissions)}</span>` : ""}
+      <span class="identity-meta">${escapeHTML(entry.note)}</span>
+    </div>
+  `;
+  return `
+    <article class="panel provider-card status-${escapeHTML(card.status)}">
+      <div class="provider-card-head">
+        <div>
+          <p class="eyebrow">${kindLabel}</p>
+          <h3>${escapeHTML(card.name)}</h3>
+        </div>
+        <span class="mini-chip ${statusChip[0]}">${statusChip[1]}</span>
+      </div>
+      <div class="provider-balance">
+        <strong>${balance.availableUSD === null ? "Unavailable" : money2(balance.availableUSD)}</strong>
+        <span>${currency}${escapeHTML(asOf)}</span>
+        <small>${balanceDetail}</small>
+      </div>
+      <div class="provider-metrics">
+        ${metric("Today", money2(estimated.todayUSD), `7-day avg ${money2(estimated.dailyAverage7USD)}/day`)}
+        ${metric("This month", money2(estimated.monthToDateUSD), verified ? `Billed ${money2(verified.monthToDate)} (verified)` : "Billing not connected")}
+        ${metric("Runway", runway.days === null ? "—" : `${runway.days} days`,
+          runway.days !== null ? `Until ${formatDay(runway.exhaustionDate)} at ${money2(runway.burnPerDayUSD)}/day`
+            : balance.availableUSD === null ? "Needs a balance" : "No recent spend")}
+        ${metric("Capacity", capacity.generationsRemaining === null ? "—" : `≈${number(capacity.generationsRemaining)}`,
+          capacity.averageCostPerGenerationUSD ? `generations at ${money2(capacity.averageCostPerGenerationUSD)} each` : "No priced generations")}
+      </div>
+      <div class="provider-sync">
+        <span>Balance: <strong>${credentialLabel(card.sync.balanceStatus)}</strong></span>
+        <span>Spend: <strong>${credentialLabel(card.sync.spendStatus)}</strong></span>
+        <span>${card.sync.lastSuccessAt ? `Last success ${timeAgo(Date.parse(card.sync.lastSuccessAt))}` : "Never synced successfully"}</span>
+      </div>
+      <details class="provider-details">
+        <summary>Billing access and sync messages</summary>
+        ${messages ? `<ul class="sync-messages">${messages}</ul>` : ""}
+        ${capability("Balance", card.capabilities.balance)}
+        ${capability("Spend", card.capabilities.spend)}
+        ${verified && verified.breakdown.length ? `<div class="capability"><strong>Billed this month by line item</strong>${verified.breakdown.slice(0, 6)
+          .map((row) => `<span>${escapeHTML(row.label)}: ${money2(row.amount)}${row.ai ? "" : " (not AI)"}</span>`).join("")}</div>` : ""}
+        <a class="console-link" href="${escapeHTML(card.consoleURL)}" target="_blank" rel="noopener noreferrer">Open ${escapeHTML(PROVIDER_SHORT_NAMES[card.id])} console</a>
+      </details>
+    </article>
+  `;
+}
+
+function renderProviderCards() {
+  pm.providers.innerHTML = state.finance.providers.map(providerCardMarkup).join("");
+}
+
+function financeChartOptions(stacked) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    interaction: { intersect: false, mode: "index" },
+    plugins: {
+      legend: { align: "end", labels: { color: "#c4cad6", boxWidth: 8, boxHeight: 8, usePointStyle: true, padding: 14 } },
+      tooltip: {
+        backgroundColor: "rgba(7, 9, 13, 0.96)",
+        borderColor: "rgba(230, 237, 245, 0.14)",
+        borderWidth: 1,
+        padding: 10,
+        callbacks: { label: (context) => ` ${context.dataset.label}: ${context.parsed.y === null ? "—" : money2(context.parsed.y)}` }
+      }
+    },
+    scales: {
+      x: { stacked, grid: { display: false }, border: { display: false }, ticks: { color: "#8f99aa", maxRotation: 0, autoSkipPadding: 18 } },
+      y: {
+        stacked,
+        beginAtZero: true,
+        grid: { color: "rgba(230,237,245,0.07)" },
+        border: { display: false },
+        ticks: { color: "#8f99aa", maxTicksLimit: 5, callback: (value) => `$${Number(value).toFixed(Number(value) < 10 ? 2 : 0)}` }
+      }
+    }
+  };
+}
+
+function renderSpendChart() {
+  const granularity = state.spendGranularity;
+  const points = state.finance.series[granularity] || [];
+  const labels = points.map((point) => `${point.label}${point.partial ? "*" : ""}`);
+  const used = PROVIDER_IDS.filter((id) => points.some((point) => (point.byProvider?.[id] || 0) > 0));
+  const datasets = (used.length > 0 ? used : ["byteplus"]).map((id) => ({
+    label: PROVIDER_SHORT_NAMES[id],
+    data: points.map((point) => point.byProvider?.[id] || 0),
+    backgroundColor: PROVIDER_COLORS[id],
+    borderRadius: 4,
+    maxBarThickness: granularity === "daily" ? 10 : 26,
+    stack: "spend"
+  }));
+  if (state.pmSpendChart) {
+    state.pmSpendChart.destroy();
+  }
+  state.pmSpendChart = new Chart(pm.spendChart, { type: "bar", data: { labels, datasets }, options: financeChartOptions(true) });
+  pm.spendLabel.textContent = {
+    daily: "Last 90 days · estimated",
+    weekly: "Last 26 weeks · estimated",
+    monthly: "Last 6 months · estimated"
+  }[granularity];
+  const total = points.reduce((sum, point) => sum + (Number(point.totalUSD) || 0), 0);
+  pm.spendTotal.textContent = money2(total);
+  pm.spendPeak.textContent = money2(Math.max(0, ...points.map((point) => Number(point.totalUSD) || 0)));
+  pm.spendGenerations.textContent = number(points.reduce((sum, point) => sum + (Number(point.generations) || 0), 0));
+}
+
+function renderProviderMix() {
+  const data = state.finance;
+  const other = data.series.monthly.at(-1)?.byProvider?.other || 0;
+  const entries = data.providers.map((card) => ({
+    label: PROVIDER_SHORT_NAMES[card.id],
+    value: Number(card.estimatedSpend.monthToDateUSD) || 0,
+    color: PROVIDER_COLORS[card.id]
+  }));
+  if (other > 0) {
+    entries.push({ label: "Other", value: other, color: PROVIDER_COLORS.other });
+  }
+  state.pmMixChart = renderDoughnut(state.pmMixChart, pm.mixChart, pm.mixLegend, entries.sort((lhs, rhs) => rhs.value - lhs.value), money2);
+}
+
+function renderRevenueChart() {
+  const data = state.finance;
+  const points = data.series.monthly || [];
+  if (state.pmRevenueChart) {
+    state.pmRevenueChart.destroy();
+  }
+  const datasets = [
+    {
+      type: "bar",
+      label: "AI cost (estimated)",
+      data: points.map((point) => Number(point.totalUSD) || 0),
+      backgroundColor: "rgba(217, 162, 74, 0.78)",
+      borderRadius: 6,
+      maxBarThickness: 34,
+      order: 2
+    },
+    {
+      type: "line",
+      label: "Revenue (net)",
+      data: points.map((point) => point.revenueUSD),
+      borderColor: "#43d18b",
+      backgroundColor: "#43d18b",
+      borderWidth: 2,
+      pointRadius: 3,
+      tension: 0.25,
+      spanGaps: false,
+      order: 1
+    }
+  ];
+  if (points.some((point) => point.verifiedUSD !== null)) {
+    datasets.push({
+      type: "line",
+      label: "Billed (verified)",
+      data: points.map((point) => point.verifiedUSD),
+      borderColor: "#8f7bff",
+      backgroundColor: "#8f7bff",
+      borderDash: [5, 4],
+      borderWidth: 2,
+      pointRadius: 3,
+      spanGaps: false,
+      order: 0
+    });
+  }
+  state.pmRevenueChart = new Chart(pm.revenueChart, {
+    type: "bar",
+    data: { labels: points.map((point) => `${point.label}${point.partial ? "*" : ""}`), datasets },
+    options: financeChartOptions(false)
+  });
+  const current = points.at(-1);
+  pm.revenueNote.textContent = [
+    current?.revenueBasis === "manual" ? "This month's revenue was entered from App Store Connect." : "Revenue is estimated from subscribers who used AI each month.",
+    "Verified billing covers only providers with billing access.",
+    points.some((point) => point.partial) ? "* Month starts before the 183-day event window." : ""
+  ].filter(Boolean).join(" ");
+}
+
+function renderTopModels() {
+  const rows = state.finance.models.filter((row) => row.spend30dUSD > 0).slice(0, 8);
+  if (rows.length === 0) {
+    pm.topModels.innerHTML = `<div class="empty-state">No priced generations in the last 30 days.</div>`;
+    return;
+  }
+  const max = Math.max(...rows.map((row) => row.spend30dUSD), 0.0001);
+  pm.topModels.innerHTML = rows.map((row) => barRowMarkup({
+    title: row.label,
+    meta: `${PROVIDER_SHORT_NAMES[row.provider] || row.providerName} · ${number(row.generations30d)} generations${row.averageCostUSD !== null ? ` · ${money2(row.averageCostUSD)} avg` : ""}`,
+    value: money2(row.spend30dUSD),
+    percent: Math.max(3, Math.round((row.spend30dUSD / max) * 100)),
+    color: PROVIDER_COLORS[row.provider] || PROVIDER_COLORS.other
+  })).join("");
+}
+
+function successMarkup(outcomes) {
+  if (!outcomes) {
+    return `<span class="identity-meta">Not tracked</span>`;
+  }
+  const finished = outcomes.succeeded + outcomes.failed;
+  if (outcomes.successRate === null) {
+    return outcomes.pending ? `<span class="identity-meta">${number(outcomes.pending)} running</span>` : `<span class="identity-meta">—</span>`;
+  }
+  const tone = outcomes.successRate >= 95 ? "ready" : outcomes.successRate >= 80 ? "warn" : "danger";
+  const extra = [outcomes.cancelled ? `${number(outcomes.cancelled)} cancelled` : "", outcomes.pending ? `${number(outcomes.pending)} running` : ""]
+    .filter(Boolean).join(" · ");
+  return `
+    <span class="mini-chip ${tone}">${outcomes.successRate}%</span>
+    <span class="identity-meta">${number(outcomes.succeeded)}/${number(finished)} succeeded${extra ? ` · ${extra}` : ""}</span>
+  `;
+}
+
+function renderModelTable() {
+  let rows = state.finance?.models || [];
+  if (state.pmModelProvider) {
+    rows = rows.filter((row) => row.provider === state.pmModelProvider);
+  }
+  if (state.pmModelUsedOnly) {
+    rows = rows.filter((row) => row.generations30d > 0 || row.spend30dUSD > 0 || row.generationsMonthToDate > 0);
+  }
+  if (rows.length === 0) {
+    pm.modelTable.innerHTML = `<tr><td colspan="8" class="empty-state">No models match this filter.</td></tr>`;
+    return;
+  }
+  pm.modelTable.innerHTML = rows.map((row) => {
+    const average = row.averageCostUSD !== null
+      ? money2(row.averageCostUSD)
+      : row.nominalCostUSD !== null ? `<span class="identity-meta">~${money2(row.nominalCostUSD)} list</span>` : "—";
+    return `
+      <tr>
+        <td>
+          <div class="model-cell">
+            <strong>${escapeHTML(row.label)}${row.catalogued ? "" : ` <span class="mini-chip warn">Uncatalogued</span>`}</strong>
+            <span class="identity-meta">${escapeHTML(PROVIDER_SHORT_NAMES[row.provider] || row.providerName)} · <code>${escapeHTML(row.model)}</code></span>
+            <span class="identity-meta">${escapeHTML(row.usedBy)}</span>
+          </div>
+        </td>
+        <td class="price-cell">${escapeHTML(row.listPrice)}</td>
+        <td>${number(row.generations30d)}${row.unpriced30d ? ` <span class="mini-chip warn" title="Generations with no recorded provider cost">${number(row.unpriced30d)} unpriced</span>` : ""}</td>
+        <td>${money2(row.spend30dUSD)}</td>
+        <td>${average}</td>
+        <td class="success-cell">${successMarkup(row.outcomes)}</td>
+        <td>${row.generationsRemaining === null ? "—" : `≈${number(row.generationsRemaining)}`}</td>
+        <td>${number(row.generationsMonthToDate)} · ${money2(row.spendMonthToDateUSD)}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+function renderPlanTable() {
+  const profitability = state.finance.profitability;
+  pm.planTable.innerHTML = profitability.rows.map((row) => {
+    const worst = row.worstCaseMarginUSD === null
+      ? ""
+      : ` <span class="mini-chip ${row.worstCaseMarginUSD < 0 ? "danger" : "ready"}">${row.worstCaseMarginUSD < 0 ? "loss" : "profit"} ${money2(Math.abs(row.worstCaseMarginUSD))}</span>`;
+    return `
+      <tr>
+        <td>
+          <div class="model-cell">
+            <strong>${escapeHTML(row.label)}</strong>
+            <span class="identity-meta">${row.priceUSD === null ? "Price not set" : `${money2(row.priceUSD)} list`}</span>
+          </div>
+        </td>
+        <td>${row.netMonthlyUSD === null ? "—" : money2(row.netMonthlyUSD)}</td>
+        <td>${number(row.payingSubscribers)}${row.testSubscribers ? ` <span class="identity-meta">+${number(row.testSubscribers)} test</span>` : ""}</td>
+        <td>${row.revenueUSD === null ? "—" : money2(row.revenueUSD)}</td>
+        <td>${money2(row.costUSD)}${row.testCostUSD ? ` <span class="identity-meta">+${money2(row.testCostUSD)} test</span>` : ""}</td>
+        <td class="${row.marginUSD !== null && row.marginUSD < 0 ? "negative" : ""}">${row.marginUSD === null ? "—" : money2(row.marginUSD)}</td>
+        <td>${money2(row.worstCaseCostUSD)}${worst}</td>
+      </tr>
+    `;
+  }).join("");
+  pm.planNote.textContent = `${profitability.basis} Full-allowance cost assumes ${money2(profitability.typicalVideoCostUSD)} per video clip ` +
+    `and ${money2(profitability.typicalPreviewCostUSD)} per music-video preview, plus every AI credit spent.`;
+}
+
+function renderRecommendations() {
+  const data = state.finance;
+  const recommendations = data.recommendations || [];
+  pm.recommendations.innerHTML = recommendations.length === 0
+    ? `<div class="empty-state">No recommendations right now.</div>`
+    : recommendations.map((item) => `
+      <div class="recommendation">
+        <strong>${escapeHTML(item.title)}</strong>
+        <span>${escapeHTML(item.detail)}</span>
+      </div>
+    `).join("");
+  const quality = data.dataQuality;
+  const notes = [...quality.notes];
+  if (quality.uncataloguedModels.length > 0) {
+    notes.push(`Models seen in events but missing from the catalogue: ${quality.uncataloguedModels.join(", ")}.`);
+  }
+  notes.push("BytePlus balances come from QueryBalanceAcct, which reports the prepaid balance; Google and OpenAI do not offer balance APIs.");
+  pm.notes.innerHTML = notes.map((note) => `<li>${escapeHTML(note)}</li>`).join("");
+}
+
+function previousPeriodKey(period) {
+  const [year, month] = String(period).split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 2, 1));
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function setInputValue(input, value) {
+  input.value = value === null || value === undefined ? "" : String(value);
+}
+
+function openFinanceSettings() {
+  const data = state.finance;
+  if (!data) {
+    return;
+  }
+  const settings = data.settings;
+  setInputValue(pm.warning, settings.thresholds.warningUSD);
+  setInputValue(pm.critical, settings.thresholds.criticalUSD);
+  pm.dialog.querySelectorAll("[data-threshold]").forEach((input) => {
+    setInputValue(input, settings.thresholds.perProvider?.[input.dataset.threshold]?.[input.dataset.level]);
+  });
+  setInputValue(pm.runwayWarning, settings.runway.warningDays);
+  setInputValue(pm.runwayCritical, settings.runway.criticalDays);
+  setInputValue(pm.spikeMultiplier, settings.spike.multiplier);
+  setInputValue(pm.spikeMinimum, settings.spike.minimumDailyUSD);
+  pm.dialog.querySelectorAll("[data-manual]").forEach((input) => {
+    const entry = settings.manualBalances?.[input.dataset.manual];
+    const value = entry?.[input.dataset.field];
+    setInputValue(input, input.dataset.field === "asOf" && value ? String(value).slice(0, 10) : value);
+  });
+  setInputValue(pm.commission, Math.round(settings.revenue.appleCommissionRate * 100));
+  pm.dialog.querySelectorAll("[data-price]").forEach((input) => {
+    setInputValue(input, settings.revenue.planPricesUSD?.[input.dataset.price]);
+  });
+  const current = data.periodKey;
+  const previous = previousPeriodKey(current);
+  pm.revenueCurrentLabel.textContent = `App Store net proceeds ${current}`;
+  pm.revenuePreviousLabel.textContent = `App Store net proceeds ${previous}`;
+  setInputValue(pm.revenueCurrent, settings.revenue.manualMonthlyNetUSD?.[current]);
+  setInputValue(pm.revenuePrevious, settings.revenue.manualMonthlyNetUSD?.[previous]);
+  setInputValue(pm.googleTable, settings.googleBillingExportTable);
+  setInputValue(pm.bytePlusRegion, settings.bytePlusBillingRegion);
+  pm.error.classList.add("hidden");
+  pm.error.textContent = "";
+  pm.dialog.showModal();
+}
+
+function optionalNumber(input) {
+  const value = input.value.trim();
+  return value === "" ? null : Number(value);
+}
+
+function collectFinanceSettings() {
+  const data = state.finance;
+  const settings = data.settings;
+  const perProvider = {};
+  ["byteplus", "google", "openai"].forEach((id) => {
+    const warning = optionalNumber(pm.dialog.querySelector(`[data-threshold="${id}"][data-level="warningUSD"]`));
+    const critical = optionalNumber(pm.dialog.querySelector(`[data-threshold="${id}"][data-level="criticalUSD"]`));
+    if (warning === null && critical === null) {
+      return;
+    }
+    if (warning === null || critical === null) {
+      throw new Error(`Enter both thresholds for ${PROVIDER_SHORT_NAMES[id]}, or leave both blank to use the default.`);
+    }
+    perProvider[id] = { warningUSD: warning, criticalUSD: critical };
+  });
+  const manualBalances = {};
+  ["byteplus", "google", "openai"].forEach((id) => {
+    const amount = optionalNumber(pm.dialog.querySelector(`[data-manual="${id}"][data-field="amountUSD"]`));
+    const asOf = pm.dialog.querySelector(`[data-manual="${id}"][data-field="asOf"]`).value;
+    if (amount === null) {
+      return;
+    }
+    if (!asOf) {
+      throw new Error(`Add the date the ${PROVIDER_SHORT_NAMES[id]} balance was read.`);
+    }
+    manualBalances[id] = { amountUSD: amount, asOf, note: settings.manualBalances?.[id]?.note || "" };
+  });
+  const planPricesUSD = {};
+  pm.dialog.querySelectorAll("[data-price]").forEach((input) => {
+    planPricesUSD[input.dataset.price] = optionalNumber(input);
+  });
+  const manualMonthlyNetUSD = { ...(settings.revenue.manualMonthlyNetUSD || {}) };
+  const current = data.periodKey;
+  const previous = previousPeriodKey(current);
+  [[current, pm.revenueCurrent], [previous, pm.revenuePrevious]].forEach(([period, input]) => {
+    const value = optionalNumber(input);
+    if (value === null) {
+      delete manualMonthlyNetUSD[period];
+    } else {
+      manualMonthlyNetUSD[period] = value;
+    }
+  });
+  const commission = optionalNumber(pm.commission);
+  return {
+    thresholds: { warningUSD: optionalNumber(pm.warning), criticalUSD: optionalNumber(pm.critical), perProvider },
+    runway: { warningDays: optionalNumber(pm.runwayWarning), criticalDays: optionalNumber(pm.runwayCritical) },
+    spike: { multiplier: optionalNumber(pm.spikeMultiplier), minimumDailyUSD: optionalNumber(pm.spikeMinimum) },
+    revenue: { appleCommissionRate: commission === null ? null : commission / 100, planPricesUSD, manualMonthlyNetUSD },
+    manualBalances,
+    googleBillingExportTable: pm.googleTable.value.trim(),
+    bytePlusBillingRegion: pm.bytePlusRegion.value.trim()
+  };
+}
+
+async function saveFinanceSettings() {
+  if (!state.user || !state.finance) {
+    return;
+  }
+  pm.error.classList.add("hidden");
+  let settings;
+  try {
+    settings = collectFinanceSettings();
+  } catch (error) {
+    pm.error.textContent = errorMessage(error);
+    pm.error.classList.remove("hidden");
+    return;
+  }
+  pm.saveButton.disabled = true;
+  pm.saveButton.textContent = "Saving…";
+  try {
+    const token = await state.user.getIdToken();
+    const result = await financeSettingsCallable({ authIDToken: token, settings });
+    state.finance = result.data;
+    state.financeError = "";
+    state.financeLoadedAt = Date.now();
+    renderFinanceMonitor();
+    pm.dialog.close();
+    showToast("Finance settings saved.", "ready");
+  } catch (error) {
+    pm.error.textContent = errorMessage(error);
+    pm.error.classList.remove("hidden");
+  } finally {
+    pm.saveButton.disabled = false;
+    pm.saveButton.textContent = "Save settings";
+  }
+}
+
 function daysRemainingInMonth() {
   const now = new Date();
   const daysInMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 0)).getUTCDate();
@@ -1056,7 +1841,9 @@ function renderAudit() {
     <div class="event-row">
       <strong>${escapeHTML(entry.changes || "Updated limits")}</strong>
       <span>By ${escapeHTML(entry.byEmail || shortID(entry.byUID) || "unknown admin")} / ${formatDate(entry.at)}</span>
-      <span>Subject ${escapeHTML(shortID(entry.quotaSubjectHash, 10))}${entry.note ? ` / Note: ${escapeHTML(entry.note)}` : ""}</span>
+      ${entry.quotaSubjectHash || entry.note
+        ? `<span>${entry.quotaSubjectHash ? `Subject ${escapeHTML(shortID(entry.quotaSubjectHash, 10))}` : ""}${entry.quotaSubjectHash && entry.note ? " / " : ""}${entry.note ? `Note: ${escapeHTML(entry.note)}` : ""}</span>`
+        : ""}
     </div>
   `).join("");
 }
@@ -1508,6 +2295,26 @@ function number(value) {
 
 function money(value) {
   return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 4 }).format(Number(value) || 0);
+}
+
+// Balances and spend read best in cents; sub-dollar unit costs keep up to four decimals.
+function money2(value) {
+  const amount = Number(value) || 0;
+  const precise = amount !== 0 && Math.abs(amount) < 1;
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: precise ? 4 : 2
+  }).format(amount);
+}
+
+function formatDay(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "—";
+  }
+  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
 }
 
 function percent(used, limit) {
