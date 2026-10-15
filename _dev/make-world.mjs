@@ -299,6 +299,57 @@ const finance = computeFinanceMonitor({
     at: new Date(now.getTime() - (7 - index) * 12 * 3600e3) }))
 });
 
+// --- soundframeAdminAppStoreSubscribers (real summary; skipped when the functions build predates it) ---
+const appStoreLib = await import(`${LIB}/adminAppStoreSubscribers.js`).catch(() => null);
+if (appStoreLib) {
+  const { summarizeAppStoreSubscribers } = appStoreLib;
+  const at = (days) => new Date(now.getTime() + days * DAY);
+  const token = (index) => `00000000-0000-4000-8000-${String(index).padStart(12, "0")}`;
+  const subscriptions = [];
+  const links = new Map();
+  const identities = new Map();
+  // Subscribers who used AI this month: same hash as their usage record; one restored on another device (unlinked).
+  users.filter((user) => !user.email.startsWith("owner.debug")).slice(0, 8).forEach((user, index) => {
+    const linked = index !== 6;
+    subscriptions.push({ subscriptionHash: user.quotaSubjectHash, productId: user.subscriptionProductID, environment: "Production",
+      status: index % 3 ? "DID_RENEW" : "SUBSCRIBED", expiresDate: at(5 + index * 3), appAccountToken: token(index + 1),
+      autoRenewStatus: index !== 2, firstSeenAt: at(-24 + index), updatedAt: at(-index), lastNotificationType: "DID_RENEW", source: "notification" });
+    if (linked) {
+      links.set(token(index + 1), { uid: user.uid, uids: [user.uid] });
+      identities.set(user.uid, { email: user.email, displayName: user.displayName });
+    }
+  });
+  // Paid subscribers with no AI use this month, plus every billing state. Lookup IDs: 2000000900000001…10.
+  [
+    [PLAN.pro, "SUBSCRIBED", 24, "lerato@example.com"], [PLAN.go, "DID_RENEW", 11], [PLAN.go, "DID_RENEW", 17],
+    [PLAN.three, "SUBSCRIBED", 70, "pieter@example.com"], [PLAN.pro, "GRACE_PERIOD", -2, null, { gracePeriodExpiresDate: at(14) }],
+    [PLAN.go, "DID_FAIL_TO_RENEW", -9], [PLAN.pro, "REFUND", -3], [PLAN.pro, "EXPIRED", -30], [PLAN.pro, "DID_RENEW", -2], [PLAN.pro, "SUBSCRIBED", 20, "shared"]
+  ].forEach(([productId, status, expiresInDays, owner, extra = {}], index) => {
+    subscriptions.push({ subscriptionHash: hex(`transaction:${2000000900000001 + index}`), productId, environment: "Production", status,
+      expiresDate: at(expiresInDays), appAccountToken: token(100 + index), autoRenewStatus: status !== "EXPIRED", firstSeenAt: at(-25 + index),
+      updatedAt: at(-index / 2), lastNotificationType: status, source: index === 1 ? "entitlement-check" : "notification", ...extra });
+    if (owner === "shared") links.set(token(100 + index), { uid: "shared-b", uids: ["shared-a", "shared-b"] });
+    else if (owner) {
+      links.set(token(100 + index), { uid: uidFor(owner), uids: [uidFor(owner)] });
+      identities.set(uidFor(owner), { email: owner, displayName: "" });
+    }
+  });
+  subscriptions.push({ subscriptionHash: hex("transaction:sandbox-1"), productId: PLAN.pro, environment: "Sandbox", status: "DID_RENEW", expiresDate: at(0.2), firstSeenAt: at(-2), source: "notification" });
+  subscriptions.push({ subscriptionHash: hex("transaction:sandbox-2"), productId: PLAN.go, environment: "Sandbox", status: "EXPIRED", expiresDate: at(-1), firstSeenAt: at(-2), source: "notification" });
+  const usageHashes = new Set(users.map((user) => user.quotaSubjectHash));
+  const health = { receivedCount: 57, lastReceivedAt: at(-0.05), lastNotificationType: "DID_RENEW", lastEnvironment: "Production",
+    lastTestAt: at(-21), rejectedCount: 1, lastRejectedAt: at(-2), lastRejectedReason: "untrusted_root" };
+  const appStore = summarizeAppStoreSubscribers({ subscriptions, links, usageHashes, health, identities, now, periodKey });
+  // Deployed, but Apple has not delivered anything: only subscribers seen at AI feature checks.
+  const waiting = summarizeAppStoreSubscribers({ subscriptions: subscriptions.slice(0, 3).map((data) => ({ ...data, source: "entitlement-check" })),
+    links, usageHashes, health: null, identities, now, periodKey });
+  writeFileSync(join(outDir, "appstore-mock.json"), JSON.stringify(appStore));
+  writeFileSync(join(outDir, "appstore-waiting-mock.json"), JSON.stringify(waiting));
+  console.log("app store", JSON.stringify(appStore.counts.Production));
+} else {
+  console.log("app store mock skipped: this functions build has no adminAppStoreSubscribers.js");
+}
+
 writeFileSync(join(outDir, "dashboard-mock.json"), JSON.stringify(dashboard));
 writeFileSync(join(outDir, "finance-mock.json"), JSON.stringify(finance));
 console.log("users", users.length, "events(14d)", windowEvents.length, "stats", JSON.stringify(stats));

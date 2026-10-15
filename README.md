@@ -72,6 +72,8 @@ The server swaps `js/firebase-sdk.js` for `_dev/firebase-stub.js`, which provide
 | `slow` | Callables answer slowly (loading states) |
 | `critical` / `healthy` | Alert extremes |
 
+Add `&appstore=waiting` (endpoint deployed, no App Store notification yet) or `&appstore=missing` (App Store functions not deployed) to preview the Subscribers page's other App Store states; the default is live data. Lookup IDs `2000000900000001`–`2000000900000010` match the mock App Store subscriptions.
+
 To regenerate realistic mock data with the real finance computation, build the functions first, then run:
 
 `SOUNDFRAME_FUNCTIONS_LIB=~/Documents/GitHub/soundframe-ios/functions/lib node _dev/make-world.mjs`

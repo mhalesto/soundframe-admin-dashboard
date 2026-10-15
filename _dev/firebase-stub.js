@@ -1,11 +1,14 @@
 // Local stand-in for the Firebase SDK: a fake signed-in admin and canned callable responses. No network.
 // Scenarios via ?scenario=: signedout | locked | empty | error | nofinance | financedenied | slow | critical | healthy
+// App Store source via ?appstore=: live (default) | waiting | missing
 const params = new URLSearchParams(location.search);
 const scenario = params.get("scenario") || (location.search.includes("nofinance") ? "nofinance" : "default");
 const delay = scenario === "slow" ? 2200 : 260;
-const [dashboardBase, financeBase] = await Promise.all([
+const appStoreScenario = params.get("appstore") || "live";
+const [dashboardBase, financeBase, appStoreBase] = await Promise.all([
   fetch("/__harness/dashboard-mock.json").then((response) => response.json()),
-  fetch("/__harness/finance-mock.json").then((response) => response.json())
+  fetch("/__harness/finance-mock.json").then((response) => response.json()),
+  fetch(appStoreScenario === "waiting" ? "/__harness/appstore-waiting-mock.json" : "/__harness/appstore-mock.json").then((response) => response.json())
 ]);
 window.__callableLog = [];
 window.__scenario = scenario;
@@ -69,6 +72,10 @@ export function httpsCallable(_functions, name) {
     if (name.startsWith("soundframeAdminFinance") && scenario === "financedenied") fail("permission-denied", "Billing access is not permitted for this admin.");
     if (name === "soundframeAdminStatus") return { data: { uid: "kQ2mZr8YtV4pL1xN6sD0aHf3Wc7u", isAdmin: scenario !== "locked" } };
     if (name === "soundframeAdminDashboard") return { data: dashboardData() };
+    if (name === "soundframeAdminAppStoreSubscribers") {
+      if (appStoreScenario === "missing") fail("not-found", "Function soundframeAdminAppStoreSubscribers not found.");
+      return { data: { ...appStoreBase, generatedAt: new Date().toISOString() } };
+    }
     if (name === "soundframeAdminUpdateUserLimits") return { data: dashboardData() };
     if (name === "soundframeAdminFinanceMonitor" || name === "soundframeAdminFinanceSync") return { data: financeData() };
     if (name === "soundframeAdminFinanceUpdateSettings") {
