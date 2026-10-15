@@ -149,3 +149,18 @@ export function shortHash(value) {
 }
 
 export { idChip, percent };
+
+/**
+ * Actions for a provider balance alert: open the provider's billing console in a new tab, and (for providers
+ * without a balance API) record the balance shown there as a manual balance.
+ */
+export function balanceActions(card, { details = false } = {}) {
+  if (!card) return "";
+  // A manual balance is the fallback whenever no verified reading exists (no API, or credentials not set up yet).
+  const manual = card.balance.kind === "unavailable" || card.balance.kind === "manual_estimate";
+  return html`<span class="alert-actions">
+    <a class="link-btn" href="${card.consoleURL}" target="_blank" rel="noopener noreferrer" aria-label="Open the ${card.name} console in a new tab">Console ${icon("external")}</a>
+    ${manual ? html`<button class="link-btn" type="button" data-record-balance="${card.id}">${card.balance.kind === "manual_estimate" ? "Update balance" : "Record balance"}</button>` : ""}
+    ${details ? html`<a class="link-btn" href="#providers?provider=${card.id}">Details ${icon("arrow-right")}</a>` : ""}
+  </span>`;
+}

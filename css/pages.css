@@ -1241,3 +1241,27 @@
 .panel-body > .legend + .chart-frame {
   margin-top: var(--sp-3);
 }
+
+.alert-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px 14px;
+  white-space: nowrap;
+}
+
+.alert-line .alert-actions {
+  margin-top: 1px;
+}
+
+@media (max-width: 640px) {
+  .alert-line {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .alert-line .alert-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+  }
+}

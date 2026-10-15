@@ -142,7 +142,8 @@ function optionalNumber(input) {
   return value === "" ? null : Number(value);
 }
 
-export function openFinanceSettings() {
+/** Pass { focusManual: "openai" } to land on that provider's manual balance field. */
+export function openFinanceSettings(options = {}) {
   const data = state.finance;
   if (!data) {
     toast("Finance settings need the provider monitor, which is not available right now.", "warn");
@@ -178,6 +179,19 @@ export function openFinanceSettings() {
   fs.error.classList.add("hidden");
   fs.error.textContent = "";
   showDialog(fs.dialog);
+  if (options.focusManual) {
+    const input = fs.dialog.querySelector(`[data-manual="${options.focusManual}"][data-field="amountUSD"]`);
+    const asOf = fs.dialog.querySelector(`[data-manual="${options.focusManual}"][data-field="asOf"]`);
+    // A balance read from the console now is "as of today"; the admin only has to type the amount.
+    if (asOf && !asOf.value) asOf.value = new Date().toISOString().slice(0, 10);
+    if (input) {
+      requestAnimationFrame(() => {
+        input.closest(".settings-group")?.scrollIntoView({ block: "start" });
+        input.focus();
+        input.select();
+      });
+    }
+  }
 }
 
 function collectFinanceSettings() {

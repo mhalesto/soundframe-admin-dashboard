@@ -3,7 +3,7 @@ import { state } from "../store.js";
 import { html, money, unitMoney, number, plural, timeAgo, formatDateTime, PROVIDER_COLORS } from "../format.js";
 import { icon, patch, slot, setValue, pageHeader, emptyState, provenance } from "../ui.js";
 import { providerCards, credential, isPending } from "../data.js";
-import { balanceBlock, runwayMeter, syncRows, statusPill, providerStatusTone, providerStatusLabel, toneBadge, providerDot } from "../views.js";
+import { balanceBlock, runwayMeter, syncRows, statusPill, providerStatusTone, providerStatusLabel, toneBadge, providerDot, balanceActions } from "../views.js";
 import { openDrawerRoute } from "../router.js";
 import { openFinanceSettings } from "../dialogs.js";
 import { financeUnavailable } from "./finance.js";
@@ -86,7 +86,7 @@ function providerCard(card) {
       ${problems.length ? html`<p class="provider-problem">${icon("alert")}${(card.sync.messages || []).find((message) => /fail|reject|denied|invalid|did not|401|403/i.test(message)) || "The last billing sync reported a problem."}</p>` : ""}
       ${recommendation ? html`<p class="provider-tip">${icon("info")}<span><strong>${recommendation.title}.</strong> ${recommendation.detail}</span></p>` : ""}
     </div>
-    <footer class="panel-foot"><button class="link-btn" type="button" data-open-provider="${card.id}">Details &amp; billing access ${icon("arrow-right")}</button><a class="link-btn" href="${card.consoleURL}" target="_blank" rel="noopener noreferrer">Console ${icon("external")}</a></footer>
+    <footer class="panel-foot"><button class="link-btn" type="button" data-open-provider="${card.id}">Details &amp; billing access ${icon("arrow-right")}</button>${balanceActions(card)}</footer>
   </article>`;
 }
 
@@ -125,6 +125,8 @@ export default {
     patch(root, layout());
     root.addEventListener("click", (event) => {
       if (event.target.closest("[data-finance-settings]")) openFinanceSettings();
+      const record = event.target.closest("[data-record-balance]");
+      if (record) openFinanceSettings({ focusManual: record.dataset.recordBalance });
       const sync = event.target.closest("[data-finance-sync]");
       if (sync) actions.sync(sync);
       if (event.target.closest("[data-retry-finance]")) actions.reloadFinance?.();

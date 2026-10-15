@@ -7,7 +7,7 @@ import {
 } from "../format.js";
 import { icon, patch, slot, setValue, pageHeader, emptyState, callout, provenance, deltaBadge, meter, syncSegmented, idChip } from "../ui.js";
 import { rangeSummary, deltaInfo, resolveRange, models, modelKey, users, findUser, isPending } from "../data.js";
-import { providerDot, toneBadge } from "../views.js";
+import { providerDot, toneBadge, balanceActions } from "../views.js";
 import { upsertChart, baseOptions, axisMoney, CHART_COLORS } from "../charts.js";
 import { setParams, openDrawerRoute, buildHash } from "../router.js";
 import { openFinanceSettings } from "../dialogs.js";
@@ -163,6 +163,10 @@ export function financeUnavailable() {
   return callout({ tone: "warn", title: "Provider monitoring could not be loaded", body: `${error.message} Figures that depend on it show as unavailable; nothing is shown as zero.`, action: html`<button class="btn btn-secondary btn-sm" type="button" data-retry-finance>Retry</button>` });
 }
 
+function cardFor(id) {
+  return (state.finance?.providers || []).find((card) => card.id === id) || null;
+}
+
 function renderAlerts() {
   const finance = state.finance;
   if (!finance) {
@@ -188,8 +192,8 @@ function renderAlerts() {
       <span class="alert-bar-more">${urgent.length || notes.length ? html`Details${notes.length ? ` · ${plural(notes.length, "note")}` : ""}${icon("chevron-down")}` : ""}</span>
     </summary>
     <div class="alert-bar-body">
-      ${urgent.map((alert) => html`<div class="alert-line" data-tone="${alert.severity === "critical" ? "crit" : "warn"}">${icon(alert.severity === "critical" ? "critical" : "alert")}<span>${alert.message}</span>${alert.provider ? html`<a class="link-btn" href="${buildHash("providers", { provider: alert.provider })}">Provider ${icon("arrow-right")}</a>` : html`<span></span>`}</div>`)}
-      ${notes.map((alert) => html`<div class="alert-line" data-tone="info">${icon("info")}<span>${alert.message}</span><span></span></div>`)}
+      ${urgent.map((alert) => html`<div class="alert-line" data-tone="${alert.severity === "critical" ? "crit" : "warn"}">${icon(alert.severity === "critical" ? "critical" : "alert")}<span>${alert.message}</span>${alert.provider ? balanceActions(cardFor(alert.provider), { details: true }) : html`<span></span>`}</div>`)}
+      ${notes.map((alert) => html`<div class="alert-line" data-tone="info">${icon("info")}<span>${alert.message}</span>${alert.provider ? balanceActions(cardFor(alert.provider)) : html`<span></span>`}</div>`)}
     </div>
   </details>`);
 }
@@ -538,6 +542,8 @@ export default {
         return;
       }
       if (event.target.closest("[data-finance-settings]")) openFinanceSettings();
+      const record = event.target.closest("[data-record-balance]");
+      if (record) openFinanceSettings({ focusManual: record.dataset.recordBalance });
       if (event.target.closest("[data-finance-sync]")) actions.sync(event.target.closest("[data-finance-sync]"));
       if (event.target.closest("[data-retry-finance]")) actions.reloadFinance?.();
       if (event.target.closest("[data-export-cost]")) exportCostCSV();
