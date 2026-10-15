@@ -1,894 +1,418 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-density="comfortable">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0a0c0e">
+    <meta name="robots" content="noindex">
     <title>SoundFrame Admin</title>
+    <link rel="icon" type="image/png" sizes="32x32" href="./assets/soundframe-logo-32.png">
+    <link rel="apple-touch-icon" href="./assets/soundframe-logo-180.png">
     <link rel="preconnect" href="https://www.gstatic.com">
-    <link rel="stylesheet" href="./styles.css">
+    <link rel="stylesheet" href="./css/tokens.css">
+    <link rel="stylesheet" href="./css/base.css">
+    <link rel="stylesheet" href="./css/layout.css">
+    <link rel="stylesheet" href="./css/components.css">
+    <link rel="stylesheet" href="./css/pages.css">
+    <script>
+      // Apply remembered preferences before first paint so the shell never jumps.
+      try {
+        const prefs = JSON.parse(localStorage.getItem("sfAdmin.prefs") || "{}");
+        const root = document.documentElement;
+        if (prefs.sidebar === "rail") root.dataset.sidebar = "rail";
+        if (prefs.density === "compact") root.dataset.density = "compact";
+        if (prefs.motion === "reduced" || prefs.motion === "full") root.dataset.motion = prefs.motion;
+      } catch (error) {
+        // Storage can be blocked; defaults apply.
+      }
+    </script>
   </head>
   <body>
-    <div class="shell">
-      <aside class="sidebar" aria-label="Dashboard navigation">
-        <div class="brand">
-          <span class="brand-mark">SF</span>
-          <div>
-            <strong>SoundFrame</strong>
-            <span>Admin</span>
-          </div>
+    <svg xmlns="http://www.w3.org/2000/svg" class="sr-only" aria-hidden="true" focusable="false">
+      <defs>
+        <symbol id="i-overview" viewBox="0 0 24 24"><rect x="3.5" y="3.5" width="7" height="9" rx="1.6"/><rect x="13.5" y="3.5" width="7" height="5" rx="1.6"/><rect x="13.5" y="11.5" width="7" height="9" rx="1.6"/><rect x="3.5" y="15.5" width="7" height="5" rx="1.6"/></symbol>
+        <symbol id="i-finance" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M14.9 9.3c-.6-1-1.6-1.6-2.9-1.6-1.7 0-2.9.9-2.9 2.1 0 3 6 1.5 6 4.4 0 1.3-1.3 2.2-3.1 2.2-1.4 0-2.5-.6-3.1-1.6M12 6v1.7M12 16.4V18"/></symbol>
+        <symbol id="i-subscribers" viewBox="0 0 24 24"><path d="M4 8l4.2 3.2L12 5l3.8 6.2L20 8l-1.8 10H5.8z"/><path d="M6 21h12"/></symbol>
+        <symbol id="i-users" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.2"/><path d="M3.2 19.5c0-3.2 2.6-5.3 5.8-5.3s5.8 2.1 5.8 5.3"/><path d="M15.8 5a3.2 3.2 0 0 1 0 6.1M17.6 14.6c1.9.6 3.2 2.3 3.2 4.9"/></symbol>
+        <symbol id="i-ai" viewBox="0 0 24 24"><path d="M11 3.5l1.9 4.9 4.9 1.9-4.9 1.9L11 17.1l-1.9-4.9-4.9-1.9 4.9-1.9z"/><path d="M18.5 14.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+        <symbol id="i-events" viewBox="0 0 24 24"><path d="M3 12h3.8l2.7-7 5 14 2.7-7H21"/></symbol>
+        <symbol id="i-providers" viewBox="0 0 24 24"><rect x="3.5" y="4" width="17" height="7" rx="2"/><rect x="3.5" y="13" width="17" height="7" rx="2"/><path d="M7.5 7.5h.01M7.5 16.5h.01M11 7.5h2M11 16.5h2"/></symbol>
+        <symbol id="i-audit" viewBox="0 0 24 24"><path d="M12 3.2l7 2.8v5.2c0 4.4-2.9 8-7 9.6-4.1-1.6-7-5.2-7-9.6V6z"/><path d="M9 12l2.1 2.1L15.2 10"/></symbol>
+        <symbol id="i-access" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="M10.9 12.1L20 3M16.5 6.5l2.2 2.2M14 9l2 2"/></symbol>
+        <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 6.5h9M17 6.5h3M4 12h3M11 12h9M4 17.5h11M19 17.5h1"/><circle cx="15" cy="6.5" r="2"/><circle cx="9" cy="12" r="2"/><circle cx="17" cy="17.5" r="2"/></symbol>
+        <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></symbol>
+        <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.4 1.8H4.6z"/><path d="M10 20.6a2.1 2.1 0 0 0 4 0"/></symbol>
+        <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M19.5 11A7.6 7.6 0 0 0 6 6.6L4.5 8"/><path d="M4.5 4v4h4"/><path d="M4.5 13A7.6 7.6 0 0 0 18 17.4l1.5-1.4"/><path d="M19.5 20v-4h-4"/></symbol>
+        <symbol id="i-chevron-down" viewBox="0 0 24 24"><path d="M6.5 9.5l5.5 5.5 5.5-5.5"/></symbol>
+        <symbol id="i-chevron-right" viewBox="0 0 24 24"><path d="M9.5 6.5l5.5 5.5-5.5 5.5"/></symbol>
+        <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="2.6"/><path d="M9.5 4.5v15"/></symbol>
+        <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+        <symbol id="i-external" viewBox="0 0 24 24"><path d="M14 4.5h5.5V10"/><path d="M19.5 4.5L11 13"/><path d="M18 14.5V18a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h3.5"/></symbol>
+        <symbol id="i-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M5.5 15V6.2c0-1 .8-1.7 1.7-1.7H15"/></symbol>
+        <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v11"/><path d="M7.5 10.5L12 15l4.5-4.5"/><path d="M5 20h14"/></symbol>
+        <symbol id="i-filter" viewBox="0 0 24 24"><path d="M4 5.5h16l-6.2 7.2v5.8l-3.6 1.6v-7.4z"/></symbol>
+        <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+        <symbol id="i-check" viewBox="0 0 24 24"><path d="M5.5 12.5l4.2 4.2L18.5 7.5"/></symbol>
+        <symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.4 4.6a1.8 1.8 0 0 1 3.2 0l7.2 13a1.8 1.8 0 0 1-1.6 2.7H4.8a1.8 1.8 0 0 1-1.6-2.7z"/><path d="M12 9.5v4.5M12 17.2h.01"/></symbol>
+        <symbol id="i-critical" viewBox="0 0 24 24"><path d="M8.3 3.5h7.4l4.8 4.8v7.4l-4.8 4.8H8.3l-4.8-4.8V8.3z"/><path d="M12 8v5M12 16.2h.01"/></symbol>
+        <symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M12 11v5.2M12 7.8h.01"/></symbol>
+        <symbol id="i-ok" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M8.2 12.3l2.6 2.6 5-5.2"/></symbol>
+        <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+        <symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14M13 6l6 6-6 6"/></symbol>
+        <symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="15" rx="2.6"/><path d="M3.5 10h17M8 3v4M16 3v4"/></symbol>
+        <symbol id="i-compare" viewBox="0 0 24 24"><path d="M4 8.5h13.5L14 5M20 15.5H6.5L10 19"/></symbol>
+        <symbol id="i-logout" viewBox="0 0 24 24"><path d="M14.5 4.5H18a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-3.5"/><path d="M10 16l-4-4 4-4M6 12h10"/></symbol>
+        <symbol id="i-more" viewBox="0 0 24 24"><path d="M6 12h.01M12 12h.01M18 12h.01"/></symbol>
+        <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+        <symbol id="i-unlink" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/><path d="M4 4l16 16"/></symbol>
+        <symbol id="i-wallet" viewBox="0 0 24 24"><path d="M5 7.5V6.6c0-1 .8-1.9 1.9-1.9H17v2.8"/><rect x="4" y="7.5" width="16" height="12" rx="2.2"/><path d="M15.5 13.5h.01"/></symbol>
+        <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.8"/><path d="M12 7.5V12l3 2"/></symbol>
+        <symbol id="i-edit" viewBox="0 0 24 24"><path d="M4.5 19.5h3.8L19 8.8 15.2 5 4.5 15.7z"/><path d="M13 7.2l3.8 3.8"/></symbol>
+        <symbol id="i-sort" viewBox="0 0 24 24"><path d="M8.5 10L12 6.5l3.5 3.5M8.5 14l3.5 3.5 3.5-3.5"/></symbol>
+        <symbol id="i-keyboard" viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2.4"/><path d="M7 10h.01M10.3 10h.01M13.7 10h.01M17 10h.01M8 14h8"/></symbol>
+      </defs>
+    </svg>
+
+    <a class="skip-link" href="#main">Skip to content</a>
+
+    <div class="app" id="app" data-auth="booting">
+      <aside class="sidebar" id="sidebar" aria-label="Primary">
+        <div class="sidebar-head">
+          <a class="brand" href="#overview" aria-label="SoundFrame Admin, go to Overview">
+            <img class="brand-logo" src="./assets/soundframe-logo-64.png" width="30" height="30" alt="">
+            <span class="brand-text">
+              <strong>SoundFrame</strong>
+              <span>Admin console</span>
+            </span>
+          </a>
+          <button class="icon-btn sidebar-close" id="sidebarClose" type="button" aria-label="Close navigation">
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
         </div>
-        <nav>
-          <a href="#overview" class="active" data-view-link="overview">Overview</a>
-          <a href="#finance" data-view-link="finance">Finance</a>
-          <a href="#users" data-view-link="users">Users</a>
-          <a href="#events" data-view-link="events">Events</a>
-          <a href="#audit" data-view-link="audit">Audit</a>
-          <a href="#access" data-view-link="access">Access</a>
+
+        <nav class="nav" id="nav" aria-label="Sections">
+          <span class="nav-indicator" id="navIndicator" aria-hidden="true"></span>
+          <div class="nav-group" role="group" aria-labelledby="navMain">
+            <p class="nav-label" id="navMain">Main</p>
+            <a class="nav-item" href="#overview" data-route="overview" data-tip="Overview"><svg class="icon"><use href="#i-overview"/></svg><span class="nav-text">Overview</span><span class="nav-badge" data-badge="overview"></span></a>
+            <a class="nav-item" href="#finance" data-route="finance" data-tip="Finance"><svg class="icon"><use href="#i-finance"/></svg><span class="nav-text">Finance</span><span class="nav-badge" data-badge="finance"></span></a>
+            <a class="nav-item" href="#subscribers" data-route="subscribers" data-tip="Subscribers"><svg class="icon"><use href="#i-subscribers"/></svg><span class="nav-text">Subscribers</span><span class="nav-badge" data-badge="subscribers"></span></a>
+            <a class="nav-item" href="#users" data-route="users" data-tip="Users"><svg class="icon"><use href="#i-users"/></svg><span class="nav-text">Users</span><span class="nav-badge" data-badge="users"></span></a>
+          </div>
+          <div class="nav-group" role="group" aria-labelledby="navOps">
+            <p class="nav-label" id="navOps">Operations</p>
+            <a class="nav-item" href="#operations" data-route="operations" data-tip="AI Operations"><svg class="icon"><use href="#i-ai"/></svg><span class="nav-text">AI Operations</span><span class="nav-badge" data-badge="operations"></span></a>
+            <a class="nav-item" href="#events" data-route="events" data-tip="Events"><svg class="icon"><use href="#i-events"/></svg><span class="nav-text">Events</span><span class="nav-badge" data-badge="events"></span></a>
+            <a class="nav-item" href="#providers" data-route="providers" data-tip="Provider Health"><svg class="icon"><use href="#i-providers"/></svg><span class="nav-text">Provider Health</span><span class="nav-badge" data-badge="providers"></span></a>
+          </div>
+          <div class="nav-group" role="group" aria-labelledby="navSystem">
+            <p class="nav-label" id="navSystem">System</p>
+            <a class="nav-item" href="#audit" data-route="audit" data-tip="Audit"><svg class="icon"><use href="#i-audit"/></svg><span class="nav-text">Audit</span><span class="nav-badge" data-badge="audit"></span></a>
+            <a class="nav-item" href="#access" data-route="access" data-tip="Access"><svg class="icon"><use href="#i-access"/></svg><span class="nav-text">Access</span><span class="nav-badge" data-badge="access"></span></a>
+            <a class="nav-item" href="#settings" data-route="settings" data-tip="Settings"><svg class="icon"><use href="#i-settings"/></svg><span class="nav-text">Settings</span><span class="nav-badge" data-badge="settings"></span></a>
+          </div>
         </nav>
-        <div class="sidebar-card">
-          <span>Project</span>
-          <strong>soundframe-1b8d4</strong>
+
+        <div class="sidebar-foot">
+          <div class="env-card" data-tip="Firebase project soundframe-1b8d4 · production">
+            <span class="env-dot" aria-hidden="true"></span>
+            <span class="env-text">
+              <strong>soundframe-1b8d4</strong>
+              <span>Production · europe-west1</span>
+            </span>
+          </div>
+          <button class="nav-item collapse-toggle" id="collapseButton" type="button" data-tip="Expand sidebar" aria-label="Collapse sidebar" aria-controls="sidebar">
+            <svg class="icon"><use href="#i-sidebar"/></svg>
+            <span class="nav-text">Collapse</span>
+            <kbd class="nav-kbd">[</kbd>
+          </button>
         </div>
       </aside>
+      <div class="nav-scrim" id="navScrim" hidden></div>
 
-      <main>
-        <header class="topbar">
-          <div>
-            <p class="eyebrow">Live control center</p>
-            <h1>Creator operations</h1>
+      <div class="main-col">
+        <header class="topbar" id="topbar">
+          <div class="topbar-row">
+            <button class="icon-btn menu-btn" id="menuButton" type="button" aria-label="Open navigation" aria-controls="sidebar" aria-expanded="false">
+              <svg class="icon"><use href="#i-menu"/></svg>
+            </button>
+            <img class="topbar-logo" src="./assets/soundframe-logo-64.png" width="24" height="24" alt="">
+            <span class="topbar-title" id="topbarTitle">Overview</span>
+            <button class="search-trigger" id="searchTrigger" type="button" aria-label="Search and commands" aria-haspopup="dialog" aria-keyshortcuts="Meta+K Control+K">
+              <svg class="icon"><use href="#i-search"/></svg>
+              <span class="search-placeholder">Search users, events, models…</span>
+              <kbd class="kbd" id="paletteKbd">⌘K</kbd>
+            </button>
+            <div class="topbar-spacer"></div>
+            <div class="topbar-controls" id="topbarControls">
+              <div class="range-control">
+                <button class="control-btn" id="rangeButton" type="button" aria-haspopup="dialog" aria-expanded="false" aria-controls="rangePopover">
+                  <svg class="icon"><use href="#i-calendar"/></svg>
+                  <span id="rangeLabel">Last 14 days</span>
+                  <svg class="icon chevron"><use href="#i-chevron-down"/></svg>
+                </button>
+                <button class="control-btn compare-btn" id="compareButton" type="button" aria-pressed="false" data-tip="Compare with the previous period">
+                  <svg class="icon"><use href="#i-compare"/></svg>
+                  <span>Compare</span>
+                </button>
+              </div>
+              <div class="refresh-status" id="refreshStatus" data-state="idle">
+                <span class="live-dot" id="liveDot" aria-hidden="true"></span>
+                <span class="refresh-text" id="freshnessText" aria-live="polite">Connecting…</span>
+                <button class="icon-btn" id="refreshButton" type="button" aria-label="Refresh data" data-tip="Refresh (⌘R)">
+                  <svg class="icon"><use href="#i-refresh"/></svg>
+                </button>
+              </div>
+            </div>
+            <button class="icon-btn bell-btn" id="bellButton" type="button" aria-label="Notifications" aria-haspopup="dialog" aria-expanded="false" aria-controls="notifPanel">
+              <svg class="icon"><use href="#i-bell"/></svg>
+              <span class="bell-badge hidden" id="bellBadge"></span>
+            </button>
+            <span class="env-chip" data-tip="Firebase project soundframe-1b8d4 · production data">
+              <span class="env-dot" aria-hidden="true"></span>
+              <span>Production</span>
+            </span>
+            <button class="avatar-btn" id="profileButton" type="button" aria-label="Admin profile" aria-haspopup="menu" aria-expanded="false" aria-controls="profileMenu">
+              <span id="avatarInitials">··</span>
+            </button>
           </div>
-          <div class="top-actions">
-            <span id="freshness" class="freshness hidden" aria-live="polite"></span>
-            <button id="autoRefreshButton" class="ghost" type="button" aria-pressed="true">Auto: on</button>
-            <button id="copyUidButton" class="ghost" type="button">Copy UID</button>
-            <button id="signOutButton" class="ghost hidden" type="button">Sign out</button>
-            <button id="refreshButton" class="primary" type="button">Refresh</button>
-          </div>
+          <div class="topbar-progress" id="topbarProgress" aria-hidden="true"></div>
         </header>
 
-        <section id="statusPanel" class="status-panel">
-          <div>
-            <span id="statusLabel" class="status-pill">Connecting</span>
-            <p id="statusText">Signing in to Firebase...</p>
+        <main class="main" id="main" tabindex="-1">
+          <section class="gate hidden" id="gate" aria-live="polite"></section>
+          <div class="pages" id="pages">
+            <section class="page" id="page-overview" data-page="overview" aria-labelledby="title-overview" hidden></section>
+            <section class="page" id="page-finance" data-page="finance" aria-labelledby="title-finance" hidden></section>
+            <section class="page" id="page-subscribers" data-page="subscribers" aria-labelledby="title-subscribers" hidden></section>
+            <section class="page" id="page-users" data-page="users" aria-labelledby="title-users" hidden></section>
+            <section class="page" id="page-operations" data-page="operations" aria-labelledby="title-operations" hidden></section>
+            <section class="page" id="page-events" data-page="events" aria-labelledby="title-events" hidden></section>
+            <section class="page" id="page-providers" data-page="providers" aria-labelledby="title-providers" hidden></section>
+            <section class="page" id="page-audit" data-page="audit" aria-labelledby="title-audit" hidden></section>
+            <section class="page" id="page-access" data-page="access" aria-labelledby="title-access" hidden></section>
+            <section class="page" id="page-settings" data-page="settings" aria-labelledby="title-settings" hidden></section>
           </div>
-          <code id="uidText">UID pending</code>
-        </section>
-
-        <section id="signInPanel" class="signin-panel hidden">
-          <div>
-            <p class="eyebrow">Sign in</p>
-            <h2>Authenticate to manage SoundFrame</h2>
-            <p>Sign in with a Google account for a real, auditable admin identity. Anonymous sign-in still works for existing whitelisted devices.</p>
-          </div>
-          <div class="signin-actions">
-            <button id="googleSignInButton" class="primary" type="button">Sign in with Google</button>
-            <button id="anonSignInButton" class="ghost" type="button">Continue anonymously</button>
-          </div>
-        </section>
-
-        <section id="setupPanel" class="setup-panel hidden">
-          <div>
-            <p class="eyebrow">Setup required</p>
-            <h2>This Firebase UID is not admin yet.</h2>
-            <p>Add the UID shown above to `SOUNDFRAME_ADMIN_UIDS` in the SoundFrame Functions environment, deploy Functions, then refresh this page.</p>
-          </div>
-          <pre><code id="setupCommand"></code></pre>
-        </section>
-
-        <section id="dashboard" class="hidden">
-          <section id="overview" class="view-section" data-view-section="overview">
-            <section class="stats-grid" aria-label="Key stats">
-              <article class="stat-card">
-                <span>Active users</span>
-                <strong id="activeUsers">0</strong>
-                <small id="usageRecords">0 usage records</small>
-              </article>
-              <article class="stat-card">
-                <span>Videos used</span>
-                <strong id="videoClips">0</strong>
-                <small>This billing month</small>
-              </article>
-              <article class="stat-card">
-                <span>AI credits used</span>
-                <strong id="creditsUsed">0</strong>
-                <small>Text, images, captions</small>
-              </article>
-              <article class="stat-card">
-                <span>Provider cost</span>
-                <strong id="providerCost">$0.00</strong>
-                <small id="activeOverrides">0 active overrides</small>
-              </article>
-            </section>
-
-            <section class="insights-grid" aria-label="Derived insights">
-              <article class="insight-tile" id="atRiskTile">
-                <span>Users at risk</span>
-                <strong id="atRiskCount">0</strong>
-                <small id="atRiskDetail">0 over limit</small>
-              </article>
-              <article class="insight-tile">
-                <span>Avg cost / active user</span>
-                <strong id="avgCost">$0.00</strong>
-                <small id="avgCredits">0 credits each</small>
-              </article>
-              <article class="insight-tile">
-                <span>Requests / day</span>
-                <strong id="avgRequests">0</strong>
-                <small id="avgRequestsWindow">14-day average</small>
-              </article>
-              <article class="insight-tile">
-                <span>Overrides</span>
-                <strong id="overrideActive">0</strong>
-                <small id="overridePaused">0 paused</small>
-              </article>
-            </section>
-
-            <section class="content-grid">
-              <article class="panel chart-panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="chartWindowLabel">Last 14 days</p>
-                    <h2>Requests and video usage</h2>
-                  </div>
-                  <span id="periodText" class="period-chip">Period</span>
-                </div>
-                <div class="chart-frame">
-                  <canvas id="usageChart" role="img" aria-label="Daily requests and video usage over the last 14 days"></canvas>
-                </div>
-                <div class="chart-summary" aria-label="Chart summary">
-                  <span><strong id="chartRequests">0</strong> requests</span>
-                  <span><strong id="chartVideos">0</strong> videos</span>
-                  <span><strong id="chartCost">$0.00</strong> provider cost</span>
-                </div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">Recent activity</p>
-                    <h2>Events</h2>
-                  </div>
-                </div>
-                <div id="eventsList" class="events-list"></div>
-              </article>
-            </section>
-
-            <section class="analytics-grid">
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">This billing month</p>
-                    <h2>Plan mix</h2>
-                  </div>
-                </div>
-                <div class="donut-frame">
-                  <canvas id="planMixChart" role="img" aria-label="Distribution of active users by plan"></canvas>
-                </div>
-                <div id="planMixLegend" class="chart-legend"></div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">This billing month</p>
-                    <h2>Feature usage</h2>
-                  </div>
-                </div>
-                <div class="donut-frame">
-                  <canvas id="featureUsageChart" role="img" aria-label="Usage split across text, images, video and captions"></canvas>
-                </div>
-                <div id="featureUsageLegend" class="chart-legend"></div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="providerWindowLabel">Last 14 days</p>
-                    <h2>Spend by provider</h2>
-                  </div>
-                </div>
-                <div id="providerSplit" class="bar-list"></div>
-              </article>
-            </section>
-
-            <section class="spend-grid">
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">This billing month</p>
-                    <h2>Top spenders</h2>
-                  </div>
-                  <span class="period-chip">By provider cost</span>
-                </div>
-                <div id="topSpenders" class="bar-list"></div>
-              </article>
-
-              <article class="panel cost-panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="costWindowLabel">Last 14 days</p>
-                    <h2>Cost by model</h2>
-                  </div>
-                  <span class="period-chip">Provider spend</span>
-                </div>
-                <div class="table-wrap">
-                  <table class="compact-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Provider / model</th>
-                        <th scope="col">Requests</th>
-                        <th scope="col">Credits</th>
-                        <th scope="col">Cost</th>
-                        <th scope="col">Share</th>
-                      </tr>
-                    </thead>
-                    <tbody id="costByModelTable"></tbody>
-                  </table>
-                </div>
-              </article>
-            </section>
-          </section>
-
-          <section id="finance" class="view-section hidden" data-view-section="finance">
-            <section id="providerMonitor" class="provider-monitor" aria-label="AI provider monitoring">
-              <div class="monitor-header">
-                <div>
-                  <p class="eyebrow">AI provider monitoring</p>
-                  <h2 class="monitor-title">Balances, spend and runway</h2>
-                  <p id="pmSyncLine" class="monitor-sub">Loading provider data…</p>
-                </div>
-                <div class="header-tools">
-                  <button id="pmSettingsButton" class="ghost" type="button" disabled>Settings</button>
-                  <button id="pmSyncButton" class="primary" type="button" disabled>Sync balances</button>
-                </div>
-              </div>
-
-              <div id="pmUnavailable" class="panel pm-unavailable hidden"></div>
-
-              <div id="pmContent" class="hidden">
-                <div id="pmAlerts" class="alert-list" aria-live="polite"></div>
-
-                <section class="pm-overview" aria-label="Financial overview">
-                  <article class="insight-tile" id="pmTileVerified">
-                    <span>Verified balances</span>
-                    <strong id="pmVerifiedBalance">—</strong>
-                    <small id="pmVerifiedDetail">From provider billing APIs</small>
-                  </article>
-                  <article class="insight-tile" id="pmTileEstimated">
-                    <span>Estimated balances</span>
-                    <strong id="pmEstimatedBalance">—</strong>
-                    <small id="pmEstimatedDetail">Manual balance minus tracked spend</small>
-                  </article>
-                  <article class="insight-tile">
-                    <span>Today's generation cost</span>
-                    <strong id="pmToday">$0.00</strong>
-                    <small id="pmTodayDetail">UTC day, estimated</small>
-                  </article>
-                  <article class="insight-tile">
-                    <span>This month</span>
-                    <strong id="pmMonth">$0.00</strong>
-                    <small id="pmMonthDetail">Estimated</small>
-                  </article>
-                  <article class="insight-tile">
-                    <span>Billed this month</span>
-                    <strong id="pmBilled">—</strong>
-                    <small id="pmBilledDetail">Verified by providers</small>
-                  </article>
-                  <article class="insight-tile">
-                    <span>Subscription revenue</span>
-                    <strong id="pmRevenue">—</strong>
-                    <small id="pmRevenueDetail">Net of Apple commission</small>
-                  </article>
-                  <article class="insight-tile" id="pmTileMargin">
-                    <span>Estimated gross margin</span>
-                    <strong id="pmMargin">—</strong>
-                    <small id="pmMarginDetail">Revenue − projected AI cost</small>
-                  </article>
-                  <article class="insight-tile" id="pmTileAttention">
-                    <span>Providers needing attention</span>
-                    <strong id="pmAttention">0</strong>
-                    <small id="pmAttentionDetail">Shortest runway —</small>
-                  </article>
-                </section>
-
-                <section id="pmProviders" class="provider-grid" aria-label="Provider balance cards"></section>
-
-                <section class="content-grid">
-                  <article class="panel chart-panel">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow" id="pmSpendLabel">Last 90 days · estimated</p>
-                        <h2>Spending by provider</h2>
-                      </div>
-                      <div class="segmented" role="group" aria-label="Spending granularity">
-                        <button type="button" data-granularity="daily" aria-pressed="true">Daily</button>
-                        <button type="button" data-granularity="weekly" aria-pressed="false">Weekly</button>
-                        <button type="button" data-granularity="monthly" aria-pressed="false">Monthly</button>
-                      </div>
-                    </div>
-                    <div class="chart-frame">
-                      <canvas id="pmSpendChart" role="img" aria-label="AI generation spending by provider over time"></canvas>
-                    </div>
-                    <div class="chart-summary" aria-label="Spending summary">
-                      <span><strong id="pmSpendTotal">$0.00</strong> total</span>
-                      <span><strong id="pmSpendPeak">$0.00</strong> peak</span>
-                      <span><strong id="pmSpendGenerations">0</strong> generations</span>
-                    </div>
-                  </article>
-
-                  <article class="panel">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow">This month · estimated</p>
-                        <h2>Spend by provider</h2>
-                      </div>
-                    </div>
-                    <div class="donut-frame">
-                      <canvas id="pmProviderMixChart" role="img" aria-label="This month's spend split by provider"></canvas>
-                    </div>
-                    <div id="pmProviderMixLegend" class="chart-legend"></div>
-                  </article>
-                </section>
-
-                <section class="content-grid">
-                  <article class="panel chart-panel">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow">Last 6 months</p>
-                        <h2>Revenue vs AI generation cost</h2>
-                      </div>
-                      <span class="period-chip">USD</span>
-                    </div>
-                    <div class="chart-frame">
-                      <canvas id="pmRevenueChart" role="img" aria-label="Monthly subscription revenue compared with AI generation cost"></canvas>
-                    </div>
-                    <p id="pmRevenueNote" class="reference-note"></p>
-                  </article>
-
-                  <article class="panel">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow">Last 30 days</p>
-                        <h2>Most expensive models</h2>
-                      </div>
-                    </div>
-                    <div id="pmTopModels" class="bar-list"></div>
-                  </article>
-                </section>
-
-                <section class="panel pm-section">
-                  <div class="panel-header users-header">
-                    <div>
-                      <p class="eyebrow">Every configured model · last 30 days</p>
-                      <h2>Model monitoring</h2>
-                    </div>
-                    <div class="filter-bar">
-                      <select id="pmModelProvider" aria-label="Filter models by provider">
-                        <option value="">All providers</option>
-                        <option value="byteplus">BytePlus ModelArk</option>
-                        <option value="google">Google Gemini API</option>
-                        <option value="openai">OpenAI</option>
-                        <option value="other">Other</option>
-                      </select>
-                      <label class="check-row compact-check">
-                        <input id="pmModelUsedOnly" type="checkbox">
-                        Used only
-                      </label>
-                    </div>
-                  </div>
-                  <div class="table-wrap">
-                    <table class="compact-table model-table">
-                      <thead>
-                        <tr>
-                          <th scope="col">Model</th>
-                          <th scope="col">List price</th>
-                          <th scope="col">Generations</th>
-                          <th scope="col">Spend</th>
-                          <th scope="col">Avg / gen</th>
-                          <th scope="col">Success</th>
-                          <th scope="col">Capacity left</th>
-                          <th scope="col">This month</th>
-                        </tr>
-                      </thead>
-                      <tbody id="pmModelTable"></tbody>
-                    </table>
-                  </div>
-                </section>
-
-                <section class="panel pm-section">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow">This month · estimated</p>
-                        <h2>Profitability by plan</h2>
-                      </div>
-                    </div>
-                    <div class="table-wrap">
-                      <table class="compact-table plan-table">
-                        <thead>
-                          <tr>
-                            <th scope="col">Plan</th>
-                            <th scope="col">Net / mo</th>
-                            <th scope="col">Paying</th>
-                            <th scope="col">Revenue</th>
-                            <th scope="col">AI cost</th>
-                            <th scope="col">Margin</th>
-                            <th scope="col">Full-allowance cost</th>
-                          </tr>
-                        </thead>
-                        <tbody id="pmPlanTable"></tbody>
-                      </table>
-                    </div>
-                    <p id="pmPlanNote" class="reference-note"></p>
-                </section>
-
-                <section class="panel pm-section">
-                    <div class="panel-header">
-                      <div>
-                        <p class="eyebrow">Safeguards</p>
-                        <h2>Recommendations</h2>
-                      </div>
-                    </div>
-                    <div id="pmRecommendations" class="recommendation-grid"></div>
-                    <details class="pm-notes">
-                      <summary>How these numbers are calculated</summary>
-                      <ul id="pmNotes"></ul>
-                    </details>
-                </section>
-              </div>
-            </section>
-
-            <div class="section-heading">
-              <p class="eyebrow">Generation events</p>
-              <h2>Tracked spend detail</h2>
-            </div>
-
-            <section class="finance-kpis" aria-label="Spend summary">
-              <article class="stat-card">
-                <span>Spend this period</span>
-                <strong id="finPeriodSpend">$0.00</strong>
-                <small id="finPeriodLabel">Current period</small>
-              </article>
-              <article class="stat-card">
-                <span>Spend last 14 days</span>
-                <strong id="finWindowSpend">$0.00</strong>
-                <small id="finWindowCredits">0 credits</small>
-              </article>
-              <article class="stat-card">
-                <span>Burn rate</span>
-                <strong id="finBurnRate">$0.00</strong>
-                <small>Per day (14-day avg)</small>
-              </article>
-              <article class="stat-card">
-                <span>Projected month-end</span>
-                <strong id="finProjected">$0.00</strong>
-                <small id="finProjectedDetail">At current burn rate</small>
-              </article>
-            </section>
-
-            <section class="content-grid">
-              <article class="panel chart-panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="finTrendLabel">Last 14 days</p>
-                    <h2>Provider cost per day</h2>
-                  </div>
-                  <span class="period-chip">USD</span>
-                </div>
-                <div class="chart-frame">
-                  <canvas id="financeCostChart" role="img" aria-label="Provider cost per day over the last 14 days"></canvas>
-                </div>
-                <div class="chart-summary" aria-label="Cost trend summary">
-                  <span><strong id="finTrendTotal">$0.00</strong> total</span>
-                  <span><strong id="finTrendPeak">$0.00</strong> peak day</span>
-                  <span><strong id="finTrendReqs">0</strong> requests</span>
-                </div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">Efficiency</p>
-                    <h2>Unit economics</h2>
-                  </div>
-                </div>
-                <div id="financeEfficiency" class="metric-list"></div>
-              </article>
-            </section>
-
-            <section class="spend-grid">
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="finProviderLabel">Last 14 days</p>
-                    <h2>Cost by provider</h2>
-                  </div>
-                </div>
-                <div class="table-wrap">
-                  <table class="compact-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Provider</th>
-                        <th scope="col">Requests</th>
-                        <th scope="col">Cost</th>
-                        <th scope="col">Cost / req</th>
-                      </tr>
-                    </thead>
-                    <tbody id="financeProviderTable"></tbody>
-                  </table>
-                </div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="finModelLabel">Last 14 days</p>
-                    <h2>Cost by model</h2>
-                  </div>
-                </div>
-                <div class="table-wrap">
-                  <table class="compact-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Provider / model</th>
-                        <th scope="col">Requests</th>
-                        <th scope="col">Cost</th>
-                        <th scope="col">Cost / req</th>
-                      </tr>
-                    </thead>
-                    <tbody id="financeModelTable"></tbody>
-                  </table>
-                </div>
-              </article>
-            </section>
-
-            <section class="spend-grid">
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow" id="finLeakLabel">Last 14 days</p>
-                    <h2>Undelivered video spend</h2>
-                  </div>
-                </div>
-                <div class="chart-summary" aria-label="Undelivered video summary">
-                  <span><strong id="finLeakTotal">$0.00</strong> est. wasted</span>
-                  <span><strong id="finLeakJobs">0</strong> jobs</span>
-                </div>
-                <div class="table-wrap">
-                  <table class="compact-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Reason</th>
-                        <th scope="col">Jobs</th>
-                        <th scope="col">Est. cost</th>
-                      </tr>
-                    </thead>
-                    <tbody id="finLeakReasonTable"></tbody>
-                  </table>
-                </div>
-              </article>
-
-              <article class="panel">
-                <div class="panel-header">
-                  <div>
-                    <p class="eyebrow">Started, billed, never delivered</p>
-                    <h2>Recent undelivered jobs</h2>
-                  </div>
-                </div>
-                <div id="finLeakRecent" class="events-list"></div>
-              </article>
-            </section>
-
-            <section class="panel">
-              <div class="panel-header users-header">
-                <div>
-                  <p class="eyebrow">This billing month</p>
-                  <h2>Cost by user</h2>
-                </div>
-                <button id="exportFinanceButton" class="ghost" type="button">Export CSV</button>
-              </div>
-              <div class="table-wrap">
-                <table class="compact-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Account</th>
-                      <th scope="col">Plan</th>
-                      <th scope="col">Credits</th>
-                      <th scope="col">Cost</th>
-                      <th scope="col">Cost / credit</th>
-                      <th scope="col">Share</th>
-                    </tr>
-                  </thead>
-                  <tbody id="financeUsersTable"></tbody>
-                </table>
-              </div>
-            </section>
-          </section>
-
-          <section id="users" class="panel users-panel view-section hidden" data-view-section="users">
-            <div class="panel-header users-header">
-              <div>
-                <p class="eyebrow">Quota management</p>
-                <h2>Users</h2>
-              </div>
-              <div class="header-tools">
-                <input id="userSearch" type="search" placeholder="Search email, UID, plan, model...">
-                <button id="exportUsersButton" class="ghost" type="button">Export CSV</button>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="account">Account</button></th>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="plan">Plan</button></th>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="videos">Videos</button></th>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="credits">Credits</button></th>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="cost">Cost</button></th>
-                    <th scope="col"><button class="sort-th" type="button" data-sort="model">Last model</button></th>
-                    <th scope="col"></th>
-                  </tr>
-                </thead>
-                <tbody id="usersTable"></tbody>
-              </table>
-            </div>
-          </section>
-
-          <section id="events" class="panel events-page view-section hidden" data-view-section="events">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Usage ledger</p>
-                <h2>Events</h2>
-              </div>
-            </div>
-            <div class="filter-bar">
-              <input id="eventSearch" type="search" placeholder="Search action, provider, model, UID...">
-              <select id="eventProvider" aria-label="Filter by provider"><option value="">All providers</option></select>
-              <select id="eventKind" aria-label="Filter by usage kind"><option value="">All kinds</option></select>
-              <button id="exportEventsButton" class="ghost" type="button">Export CSV</button>
-            </div>
-            <div id="eventsListFull" class="events-list events-list-large"></div>
-          </section>
-
-          <section id="audit" class="panel events-page view-section hidden" data-view-section="audit">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Change history</p>
-                <h2>Admin audit log</h2>
-              </div>
-            </div>
-            <div id="auditList" class="events-list events-list-large"></div>
-          </section>
-
-          <section id="access" class="panel access-panel view-section hidden" data-view-section="access">
-            <div class="panel-header">
-              <div>
-                <p class="eyebrow">Admin access</p>
-                <h2>Current session</h2>
-              </div>
-              <span id="accessStatus" class="status-pill ready">Admin</span>
-            </div>
-            <div class="access-grid">
-              <div>
-                <span>Firebase UID</span>
-                <code id="accessUID">UID pending</code>
-              </div>
-              <div>
-                <span>Signed in as</span>
-                <strong id="accessIdentity">Firebase Auth user</strong>
-              </div>
-              <div>
-                <span>Auth provider</span>
-                <strong id="accessProvider">Firebase Auth</strong>
-              </div>
-              <div>
-                <span>Data window</span>
-                <strong id="accessWindow">Last 14 days</strong>
-              </div>
-              <div>
-                <span>Billing period</span>
-                <strong id="accessPeriod">Current</strong>
-              </div>
-              <div>
-                <span>Last refreshed</span>
-                <strong id="accessRefreshed">Never</strong>
-              </div>
-            </div>
-            <div class="reference-block">
-              <p class="eyebrow">Default plan limits (reference)</p>
-              <div class="table-wrap">
-                <table class="compact-table">
-                  <thead>
-                    <tr>
-                      <th scope="col">Plan</th>
-                      <th scope="col">AI credits / month</th>
-                      <th scope="col">Video clips / month</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr><td>Go</td><td>750</td><td>1</td></tr>
-                    <tr><td>Pro monthly</td><td>2,500</td><td>4</td></tr>
-                    <tr><td>Pro 3-month</td><td>3,000</td><td>6</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <p class="reference-note">Overrides on the Users tab replace these defaults for a single user. Setting a limit to 0 blocks that capability.</p>
-            </div>
-          </section>
-        </section>
-      </main>
+        </main>
+      </div>
     </div>
 
-    <dialog id="limitDialog">
-      <form method="dialog" class="dialog-card">
-        <div class="dialog-header">
-          <div>
-            <p class="eyebrow">User quota</p>
-            <h2 id="dialogTitle">Edit limits</h2>
-          </div>
-          <button id="closeDialogButton" class="icon-button" value="cancel" aria-label="Close" type="submit">x</button>
+    <!-- Date range -->
+    <div class="popover range-popover" id="rangePopover" role="dialog" aria-label="Date range" hidden>
+      <p class="eyebrow">Date range · UTC</p>
+      <div class="range-options" id="rangeOptions" role="listbox" aria-label="Preset ranges"></div>
+      <div class="range-custom">
+        <p class="eyebrow">Custom</p>
+        <div class="range-custom-row">
+          <label class="field"><span>From</span><input type="date" id="rangeFrom"></label>
+          <label class="field"><span>To</span><input type="date" id="rangeTo"></label>
         </div>
-        <div class="quota-context">
-          <div>
-            <span>Email</span>
-            <strong id="dialogEmail">No email on file</strong>
+        <p class="range-hint" id="rangeHint">Spend history covers the last 90 days; the event ledger covers 14.</p>
+        <button class="btn btn-secondary btn-sm" id="rangeApply" type="button">Apply custom range</button>
+      </div>
+    </div>
+
+    <!-- Notifications -->
+    <div class="popover notif-panel" id="notifPanel" role="dialog" aria-label="Notifications" hidden>
+      <div class="notif-head">
+        <h2>Notifications</h2>
+        <button class="btn btn-ghost btn-sm" id="notifMarkRead" type="button">Mark all read</button>
+      </div>
+      <div class="notif-list" id="notifList"></div>
+    </div>
+
+    <!-- Profile -->
+    <div class="popover menu profile-menu" id="profileMenu" role="menu" aria-label="Admin profile" hidden>
+      <div class="profile-head" id="profileHead"></div>
+      <button class="menu-item" role="menuitem" type="button" data-action="copy-uid"><svg class="icon"><use href="#i-copy"/></svg><span>Copy admin UID</span></button>
+      <button class="menu-item" role="menuitem" type="button" data-action="go-access"><svg class="icon"><use href="#i-access"/></svg><span>Access &amp; session</span></button>
+      <button class="menu-item" role="menuitemcheckbox" type="button" data-action="toggle-auto" aria-checked="true"><svg class="icon"><use href="#i-refresh"/></svg><span>Auto-refresh</span><span class="menu-check" aria-hidden="true"></span></button>
+      <button class="menu-item" role="menuitem" type="button" data-action="go-settings"><svg class="icon"><use href="#i-settings"/></svg><span>Settings</span></button>
+      <div class="menu-sep" role="separator"></div>
+      <button class="menu-item" role="menuitem" type="button" data-action="sign-out"><svg class="icon"><use href="#i-logout"/></svg><span>Sign out</span></button>
+    </div>
+
+    <!-- Detail drawer (deep-linkable) -->
+    <dialog class="drawer" id="drawer" aria-labelledby="drawerTitle">
+      <div class="drawer-panel">
+        <header class="drawer-head">
+          <div class="drawer-head-text">
+            <p class="eyebrow" id="drawerEyebrow">Detail</p>
+            <h2 id="drawerTitle">Detail</h2>
           </div>
-          <div>
-            <span>UID</span>
-            <code id="dialogUID">uid</code>
-          </div>
-          <div>
-            <span>Quota hash</span>
-            <code id="dialogHash">quota hash</code>
-          </div>
-          <div>
-            <span>Plan</span>
-            <strong id="dialogPlan">plan</strong>
-          </div>
-        </div>
-        <label>
-          Video clip limit
-          <input id="videoLimitInput" type="number" min="0" step="1">
-        </label>
-        <label class="check-row">
-          <input id="clearVideoLimitInput" type="checkbox">
-          Clear video override
-        </label>
-        <label>
-          AI credit limit
-          <input id="creditLimitInput" type="number" min="0" step="1">
-        </label>
-        <label class="check-row">
-          <input id="clearCreditLimitInput" type="checkbox">
-          Clear credit override
-        </label>
-        <label>
-          Admin note
-          <textarea id="noteInput" rows="3" placeholder="Reason for this limit change"></textarea>
-        </label>
-        <label class="check-row">
-          <input id="disabledInput" type="checkbox">
-          Pause this override without deleting it
-        </label>
-        <div id="dialogError" class="dialog-error hidden"></div>
-        <div class="dialog-actions">
-          <button class="ghost" value="cancel" type="submit">Cancel</button>
-          <button id="saveLimitsButton" class="primary" value="default" type="button">Save limits</button>
-        </div>
-      </form>
+          <div class="drawer-head-actions" id="drawerActions"></div>
+          <button class="icon-btn" id="drawerClose" type="button" aria-label="Close details">
+            <svg class="icon"><use href="#i-close"/></svg>
+          </button>
+        </header>
+        <div class="drawer-body" id="drawerBody"></div>
+      </div>
     </dialog>
 
-    <dialog id="userDialog">
-      <div class="dialog-card">
-        <div class="dialog-header">
-          <div>
-            <p class="eyebrow">User detail</p>
-            <h2 id="userDialogTitle">User</h2>
-          </div>
-          <button id="closeUserDialogButton" class="icon-button" aria-label="Close" type="button">x</button>
+    <!-- Command palette -->
+    <dialog class="palette" id="palette" aria-label="Command palette">
+      <div class="palette-panel">
+        <div class="palette-input-row">
+          <svg class="icon"><use href="#i-search"/></svg>
+          <input id="paletteInput" type="text" role="combobox" aria-expanded="true" aria-controls="paletteList" aria-autocomplete="list"
+            placeholder="Search users, events, models, pages…" autocomplete="off" spellcheck="false">
+          <kbd class="kbd">esc</kbd>
         </div>
-        <div class="quota-context" id="userDialogIdentity"></div>
-        <div class="usage-grid" id="userDialogUsage"></div>
-        <div class="user-events-block">
-          <p class="eyebrow">Recent events</p>
-          <div id="userDialogEvents" class="events-list"></div>
-        </div>
-        <div class="dialog-actions">
-          <button id="userDialogEditButton" class="ghost" type="button">Edit limits</button>
-          <button id="userDialogCloseButton" class="primary" type="button">Close</button>
+        <div class="palette-list" id="paletteList" role="listbox" aria-label="Results"></div>
+        <div class="palette-foot">
+          <span><kbd class="kbd">↑</kbd><kbd class="kbd">↓</kbd> move</span>
+          <span><kbd class="kbd">↵</kbd> open</span>
+          <span><kbd class="kbd">[</kbd> sidebar</span>
+          <span><kbd class="kbd">⌘R</kbd> refresh</span>
         </div>
       </div>
     </dialog>
 
-    <dialog id="financeSettingsDialog" class="wide-dialog">
-      <form method="dialog" class="dialog-card">
-        <div class="dialog-header">
+    <!-- Quota override editor (same fields and callable as before) -->
+    <dialog class="modal" id="limitDialog" aria-labelledby="dialogTitle">
+      <form method="dialog" class="modal-card">
+        <header class="modal-head">
           <div>
-            <p class="eyebrow">AI provider monitoring</p>
-            <h2>Finance settings</h2>
+            <p class="eyebrow">User quota</p>
+            <h2 id="dialogTitle">Edit limits</h2>
           </div>
-          <button class="icon-button" value="cancel" aria-label="Close" type="submit">x</button>
+          <button class="icon-btn" value="cancel" type="submit" aria-label="Close"><svg class="icon"><use href="#i-close"/></svg></button>
+        </header>
+        <div class="modal-body">
+          <dl class="kv-grid">
+            <div><dt>Email</dt><dd id="dialogEmail">No email on file</dd></div>
+            <div><dt>Plan</dt><dd id="dialogPlan">plan</dd></div>
+            <div><dt>UID</dt><dd><code id="dialogUID">uid</code></dd></div>
+            <div><dt>Subscription hash</dt><dd><code id="dialogHash">quota hash</code></dd></div>
+          </dl>
+          <div class="form-grid two">
+            <label class="field">
+              <span>Video clip limit</span>
+              <input id="videoLimitInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+            <label class="field">
+              <span>AI credit limit</span>
+              <input id="creditLimitInput" type="number" min="0" step="1" inputmode="numeric">
+            </label>
+            <label class="check">
+              <input id="clearVideoLimitInput" type="checkbox"><span class="check-box" aria-hidden="true"></span>
+              Clear video override
+            </label>
+            <label class="check">
+              <input id="clearCreditLimitInput" type="checkbox"><span class="check-box" aria-hidden="true"></span>
+              Clear credit override
+            </label>
+          </div>
+          <label class="field">
+            <span>Admin note</span>
+            <textarea id="noteInput" rows="3" placeholder="Reason for this limit change (kept in the audit log)"></textarea>
+          </label>
+          <label class="check">
+            <input id="disabledInput" type="checkbox"><span class="check-box" aria-hidden="true"></span>
+            Pause this override without deleting it
+          </label>
+          <p class="form-help">Setting a limit to 0 blocks that capability. Every change is written to the audit log.</p>
+          <div id="dialogError" class="form-error hidden" role="alert"></div>
         </div>
-
-        <fieldset class="settings-group">
-          <legend>Low-balance alerts (USD)</legend>
-          <p class="settings-help">Default thresholds apply to every provider. Leave a provider blank to use the default; set both to 0 to silence a postpaid account.</p>
-          <div class="settings-grid three">
-            <span class="settings-row-label">Default</span>
-            <label>Warning below<input id="fsWarning" type="number" min="0" step="0.01" required></label>
-            <label>Critical below<input id="fsCritical" type="number" min="0" step="0.01" required></label>
-            <span class="settings-row-label">BytePlus ModelArk</span>
-            <label>Warning<input data-threshold="byteplus" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-            <label>Critical<input data-threshold="byteplus" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-            <span class="settings-row-label">Google Gemini API</span>
-            <label>Warning<input data-threshold="google" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-            <label>Critical<input data-threshold="google" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-            <span class="settings-row-label">OpenAI</span>
-            <label>Warning<input data-threshold="openai" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-            <label>Critical<input data-threshold="openai" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="settings-group">
-          <legend>Runway and spending alerts</legend>
-          <div class="settings-grid two">
-            <label>Warn when funds last fewer than (days)<input id="fsRunwayWarning" type="number" min="1" max="365" step="1" required></label>
-            <label>Critical when fewer than (days)<input id="fsRunwayCritical" type="number" min="0" max="365" step="1" required></label>
-            <label>Spike: day's spend ≥ × 7-day average<input id="fsSpikeMultiplier" type="number" min="1.1" max="50" step="0.1" required></label>
-            <label>Spike: ignore days under (USD)<input id="fsSpikeMinimum" type="number" min="0" step="0.5" required></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="settings-group">
-          <legend>Manual balances</legend>
-          <p class="settings-help">For providers without a balance API. Copy the balance from the provider console; the dashboard subtracts tracked spend since that date and labels the result as an estimate.</p>
-          <div class="settings-grid manual">
-            <span class="settings-row-label">BytePlus ModelArk</span>
-            <label>Balance (USD)<input data-manual="byteplus" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
-            <label>As of<input data-manual="byteplus" data-field="asOf" type="date"></label>
-            <span class="settings-row-label">Google Gemini API</span>
-            <label>Balance (USD)<input data-manual="google" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
-            <label>As of<input data-manual="google" data-field="asOf" type="date"></label>
-            <span class="settings-row-label">OpenAI</span>
-            <label>Balance (USD)<input data-manual="openai" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
-            <label>As of<input data-manual="openai" data-field="asOf" type="date"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="settings-group">
-          <legend>Revenue</legend>
-          <p class="settings-help">Prices default to SoundFrameProducts.storekit. Paste App Store Connect net proceeds to replace the estimate for a month.</p>
-          <div class="settings-grid two">
-            <label>Apple commission (%)<input id="fsCommission" type="number" min="0" max="50" step="1" required></label>
-            <span></span>
-            <label>Go monthly price<input data-price="com.currenttech.soundframe.go.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
-            <label>Pro monthly price<input data-price="com.currenttech.soundframe.pro.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
-            <label>Pro 3-month price<input data-price="com.currenttech.soundframe.pro.threemonth" type="number" min="0" step="0.01" placeholder="Unknown"></label>
-            <label>Legacy annual price<input data-price="com.currenttech.soundframe.pro.annual" type="number" min="0" step="0.01" placeholder="Unknown"></label>
-            <label><span id="fsRevenueCurrentLabel">Net proceeds this month</span><input id="fsRevenueCurrent" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
-            <label><span id="fsRevenuePreviousLabel">Net proceeds last month</span><input id="fsRevenuePrevious" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
-          </div>
-        </fieldset>
-
-        <fieldset class="settings-group">
-          <legend>Billing data sources</legend>
-          <div class="settings-grid two">
-            <label>Google billing export table<input id="fsGoogleTable" type="text" placeholder="soundframe-1b8d4.billing.gcp_billing_export_v1_XXXXXX" autocomplete="off" spellcheck="false"></label>
-            <label>BytePlus billing region<input id="fsBytePlusRegion" type="text" placeholder="ap-singapore-1" autocomplete="off" spellcheck="false"></label>
-          </div>
-          <p class="settings-help">Billing API keys are never entered here. They live in Firebase Secret Manager: BYTEPLUS_BILLING_ACCESS_KEY_ID, BYTEPLUS_BILLING_SECRET_ACCESS_KEY and OPENAI_ADMIN_API_KEY.</p>
-        </fieldset>
-
-        <div id="fsError" class="dialog-error hidden"></div>
-        <div class="dialog-actions">
-          <button class="ghost" value="cancel" type="submit">Cancel</button>
-          <button id="fsSaveButton" class="primary" type="button">Save settings</button>
-        </div>
+        <footer class="modal-foot">
+          <button class="btn btn-secondary" value="cancel" type="submit">Cancel</button>
+          <button id="saveLimitsButton" class="btn btn-primary" value="default" type="button">Save limits</button>
+        </footer>
       </form>
     </dialog>
 
-    <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+    <!-- Finance settings (same fields and callable as before) -->
+    <dialog class="modal modal-wide" id="financeSettingsDialog" aria-labelledby="financeSettingsTitle">
+      <form method="dialog" class="modal-card">
+        <header class="modal-head">
+          <div>
+            <p class="eyebrow">AI provider monitoring</p>
+            <h2 id="financeSettingsTitle">Finance settings</h2>
+          </div>
+          <button class="icon-btn" value="cancel" type="submit" aria-label="Close"><svg class="icon"><use href="#i-close"/></svg></button>
+        </header>
+        <div class="modal-body">
+          <fieldset class="settings-group">
+            <legend>Low-balance alerts (USD)</legend>
+            <p class="form-help">Default thresholds apply to every provider. Leave a provider blank to use the default; set both to 0 to silence a postpaid account.</p>
+            <div class="settings-grid three">
+              <span class="settings-row-label">Default</span>
+              <label class="field"><span>Warning below</span><input id="fsWarning" type="number" min="0" step="0.01" required></label>
+              <label class="field"><span>Critical below</span><input id="fsCritical" type="number" min="0" step="0.01" required></label>
+              <span class="settings-row-label">BytePlus ModelArk</span>
+              <label class="field"><span>Warning</span><input data-threshold="byteplus" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+              <label class="field"><span>Critical</span><input data-threshold="byteplus" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+              <span class="settings-row-label">Google Gemini API</span>
+              <label class="field"><span>Warning</span><input data-threshold="google" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+              <label class="field"><span>Critical</span><input data-threshold="google" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+              <span class="settings-row-label">OpenAI</span>
+              <label class="field"><span>Warning</span><input data-threshold="openai" data-level="warningUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+              <label class="field"><span>Critical</span><input data-threshold="openai" data-level="criticalUSD" type="number" min="0" step="0.01" placeholder="Default"></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="settings-group">
+            <legend>Runway and spending alerts</legend>
+            <div class="settings-grid two">
+              <label class="field"><span>Warn when funds last fewer than (days)</span><input id="fsRunwayWarning" type="number" min="1" max="365" step="1" required></label>
+              <label class="field"><span>Critical when fewer than (days)</span><input id="fsRunwayCritical" type="number" min="0" max="365" step="1" required></label>
+              <label class="field"><span>Spike: a day's spend ≥ × 7-day average</span><input id="fsSpikeMultiplier" type="number" min="1.1" max="50" step="0.1" required></label>
+              <label class="field"><span>Spike: ignore days under (USD)</span><input id="fsSpikeMinimum" type="number" min="0" step="0.5" required></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="settings-group">
+            <legend>Manual balances</legend>
+            <p class="form-help">For providers without a balance API. Copy the balance from the provider console; the dashboard subtracts tracked spend since that date and labels the result as an estimate.</p>
+            <div class="settings-grid manual">
+              <span class="settings-row-label">BytePlus ModelArk</span>
+              <label class="field"><span>Balance (USD)</span><input data-manual="byteplus" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+              <label class="field"><span>As of</span><input data-manual="byteplus" data-field="asOf" type="date"></label>
+              <span class="settings-row-label">Google Gemini API</span>
+              <label class="field"><span>Balance (USD)</span><input data-manual="google" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+              <label class="field"><span>As of</span><input data-manual="google" data-field="asOf" type="date"></label>
+              <span class="settings-row-label">OpenAI</span>
+              <label class="field"><span>Balance (USD)</span><input data-manual="openai" data-field="amountUSD" type="number" min="0" step="0.01" placeholder="Not recorded"></label>
+              <label class="field"><span>As of</span><input data-manual="openai" data-field="asOf" type="date"></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="settings-group">
+            <legend>Revenue</legend>
+            <p class="form-help">Prices default to SoundFrameProducts.storekit. Paste App Store Connect net proceeds to replace the estimate for a month.</p>
+            <div class="settings-grid two">
+              <label class="field"><span>Apple commission (%)</span><input id="fsCommission" type="number" min="0" max="50" step="1" required></label>
+              <span></span>
+              <label class="field"><span>Go monthly price</span><input data-price="com.currenttech.soundframe.go.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+              <label class="field"><span>Pro monthly price</span><input data-price="com.currenttech.soundframe.pro.monthly" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+              <label class="field"><span>Pro 3-month price</span><input data-price="com.currenttech.soundframe.pro.threemonth" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+              <label class="field"><span>Legacy annual price</span><input data-price="com.currenttech.soundframe.pro.annual" type="number" min="0" step="0.01" placeholder="Unknown"></label>
+              <label class="field"><span id="fsRevenueCurrentLabel">Net proceeds this month</span><input id="fsRevenueCurrent" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
+              <label class="field"><span id="fsRevenuePreviousLabel">Net proceeds last month</span><input id="fsRevenuePrevious" type="number" min="0" step="0.01" placeholder="Use estimate"></label>
+            </div>
+          </fieldset>
+
+          <fieldset class="settings-group">
+            <legend>Billing data sources</legend>
+            <div class="settings-grid two">
+              <label class="field"><span>Google billing export table</span><input id="fsGoogleTable" type="text" placeholder="soundframe-1b8d4.billing.gcp_billing_export_v1_XXXXXX" autocomplete="off" spellcheck="false"></label>
+              <label class="field"><span>BytePlus billing region</span><input id="fsBytePlusRegion" type="text" placeholder="ap-singapore-1" autocomplete="off" spellcheck="false"></label>
+            </div>
+            <p class="form-help">Billing API keys are never entered here. They live in Firebase Secret Manager: BYTEPLUS_BILLING_ACCESS_KEY_ID, BYTEPLUS_BILLING_SECRET_ACCESS_KEY and OPENAI_ADMIN_API_KEY.</p>
+          </fieldset>
+          <div id="fsError" class="form-error hidden" role="alert"></div>
+        </div>
+        <footer class="modal-foot">
+          <button class="btn btn-secondary" value="cancel" type="submit">Cancel</button>
+          <button id="fsSaveButton" class="btn btn-primary" type="button">Save settings</button>
+        </footer>
+      </form>
+    </dialog>
+
+    <div class="tooltip" id="tooltip" role="tooltip" hidden></div>
+    <div class="toast-region" id="toasts" aria-live="polite" aria-atomic="false"></div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script type="module" src="./app.js"></script>
+    <script type="module" src="./js/main.js"></script>
   </body>
 </html>

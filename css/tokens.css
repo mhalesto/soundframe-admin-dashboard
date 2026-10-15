@@ -1,0 +1,165 @@
+/* SoundFrame Admin design tokens.
+   Colours come from the iOS app's approved neon-glass palette (M3D) and SF status tokens. The only additions are
+   --text-3 (a lighter tertiary that passes WCAG AA on cards) and the overlay shadow. */
+:root {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --bg: #0a0c0e;            /* M3D.ground */
+  --bg-bar: #121418;        /* M3D.bar: sidebar hover, table heads, segment bars */
+  --surface: #16191c;       /* M3D.card: panels */
+  --surface-raised: #1d1f22;/* M3D.tile: tiles inside panels, hover rows */
+  --field: #1e2125;         /* M3D.field: inputs */
+  --overlay: #16191c;       /* drawers, palette, menus */
+  --scrim: rgba(4, 5, 6, 0.62);
+
+  /* Hairlines */
+  --line-faint: rgba(255, 255, 255, 0.045);
+  --line: rgba(255, 255, 255, 0.07);
+  --line-strong: rgba(255, 255, 255, 0.11);
+  --line-focus: rgba(122, 232, 187, 0.55);
+
+  /* Text */
+  --text: #f3f5f6;          /* M3D.text */
+  --text-2: #a4aab3;        /* M3D.secondary */
+  --text-3: #858c96;        /* AA-safe tertiary on cards */
+  --text-4: #737a84;        /* M3D.tertiary: decorative only */
+  --text-on-brand: #07110d; /* M3D.ink */
+
+  /* Brand */
+  --mint: #7ae8bb;
+  --lavender: #b497fc;
+  --cyan: #81eef0;
+  --blue: #80aafe;
+  --mint-soft: rgba(122, 232, 187, 0.12);
+  --lavender-soft: rgba(180, 151, 252, 0.12);
+  --blue-soft: rgba(128, 170, 254, 0.12);
+  --ramp: linear-gradient(100deg, #7ae8bb 0%, #81eef0 34%, #80aafe 68%, #b497fc 100%);
+  --selected-card: linear-gradient(180deg, #132a2c 0%, #111c24 100%);
+
+  /* Status (always paired with a label or icon) */
+  --ok: #34c98a;
+  --warn: #f5b83d;
+  --crit: #ff5a5f;
+  --info: #80aafe;
+  --ok-soft: rgba(52, 201, 138, 0.12);
+  --warn-soft: rgba(245, 184, 61, 0.12);
+  --crit-soft: rgba(255, 90, 95, 0.12);
+  --info-soft: rgba(128, 170, 254, 0.12);
+  --muted-soft: rgba(255, 255, 255, 0.06);
+
+  /* Data visualisation: one brand-derived palette, never rainbow */
+  --chart-byteplus: #7ae8bb;
+  --chart-google: #80aafe;
+  --chart-openai: #b497fc;
+  --chart-other: #5e656e;
+  --chart-primary: #7ae8bb;
+  --chart-secondary: #b497fc;
+  --chart-tertiary: #80aafe;
+  --chart-muted: rgba(243, 245, 246, 0.16);
+  --chart-compare: rgba(243, 245, 246, 0.42);
+  --chart-grid: rgba(255, 255, 255, 0.055);
+  --chart-tick: #858c96;
+
+  /* Typography */
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  --font-display: ui-serif, "New York", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  --fs-11: 11px;
+  --fs-12: 12px;
+  --fs-13: 13px;
+  --fs-14: 14px;
+  --fs-16: 16px;
+  --fs-18: 18px;
+  --fs-20: 20px;
+  --fs-24: 24px;
+  --fs-30: 30px;
+  --fs-36: 36px;
+  --lh-tight: 1.15;
+  --lh-snug: 1.3;
+  --lh-body: 1.5;
+  --tracking-eyebrow: 0.12em;
+
+  /* Spacing (4px grid) */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --gutter: 24px;
+  --page-max: 1560px;
+
+  /* Shape */
+  --r-xs: 6px;
+  --r-sm: 8px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 18px;
+  --r-pill: 999px;
+
+  /* Elevation: hairlines carry structure; shadows only separate overlays from the page */
+  --shadow-overlay: 0 24px 64px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(255, 255, 255, 0.07);
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --glow-cta: 0 6px 18px rgba(128, 170, 254, 0.24);
+  --glow-select: 0 0 0 1px rgba(122, 232, 187, 0.45), 0 4px 14px rgba(122, 232, 187, 0.12);
+
+  /* Layout */
+  --sidebar-w-expanded: 248px;
+  --sidebar-w-rail: 68px;
+  --sidebar-w: var(--sidebar-w-expanded);
+  --topbar-h: 60px;
+  --row-h: 48px;
+  --control-h: 34px;
+
+  /* Motion */
+  --dur-instant: 80ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 280ms;
+  --dur-slower: 420ms;
+  --dur-count: 700ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.32, 0.64, 1);
+  --stagger: 26ms;
+  --hover-lift: -2px;
+  --press-scale: 0.98;
+}
+
+:root[data-density="compact"] {
+  --row-h: 38px;
+  --control-h: 30px;
+  --gutter: 18px;
+}
+
+/* Reduced motion: from the OS, or the Settings override (html[data-motion="reduced"]). */
+@media (prefers-reduced-motion: reduce) {
+  :root:not([data-motion="full"]) {
+    --dur-instant: 1ms;
+    --dur-fast: 1ms;
+    --dur-base: 1ms;
+    --dur-slow: 1ms;
+    --dur-slower: 1ms;
+    --dur-count: 1ms;
+    --stagger: 0ms;
+    --hover-lift: 0px;
+    --press-scale: 1;
+  }
+}
+:root[data-motion="reduced"] {
+  --dur-instant: 1ms;
+  --dur-fast: 1ms;
+  --dur-base: 1ms;
+  --dur-slow: 1ms;
+  --dur-slower: 1ms;
+  --dur-count: 1ms;
+  --stagger: 0ms;
+  --hover-lift: 0px;
+  --press-scale: 1;
+}
